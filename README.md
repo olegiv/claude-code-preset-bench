@@ -64,7 +64,7 @@ through whatever the harness appends. Run one with no arguments and it is simply
 session with that preset, so the configs double as your daily `oclaude-*` launchers:
 
 ```bash
-./install-launchers.sh          # backs up existing oclaude-* to .bak, symlinks configs/*.sh in their place
+./install-launchers.sh          # backs up existing oclaude-* to .bak (refuses if a .bak exists), symlinks configs/*.sh in their place
 ```
 
 When benchmarking, the harness appends `-p <prompt> --output-format json --no-session-persistence

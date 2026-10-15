@@ -26,3 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   design, and the results of a first calibration pass.
 - CI: pylint on `bench.py`, plus a compile-and-list check on Python 3.8 and 3.14.
 - `CLAUDE.md` and `AGENTS.md` with instructions for coding agents working on this repository.
+
+### Fixed
+
+- `install-launchers.sh` no longer overwrites a launcher whose `.bak` already exists, or reports a
+  backup it did not make. It now checks every launcher first and, while such a `.bak` is in the
+  way, refuses and changes nothing.
