@@ -36,6 +36,7 @@ python3 bench.py summarize --since 2026-10-09T14:00     # only recent rows
 PLAN.md                       the experiment: question, arms, use-case slots, procedure, decision rule, log
 install-launchers.sh          symlinks configs/*.sh onto your PATH as oclaude-high/normal/normal-max/light/light-force
 bench.py                      runner, smoke test, summariser
+tests/                        unittest suite, no model calls: python3 -m unittest discover -s tests
 configs/
   high.sh    normal.sh    light.sh      one preset per file; mirrors your oclaude-* launchers
   normal-max.sh                         normal at --effort max: what the old oclaude-normal (ccc) ran
@@ -195,6 +196,16 @@ billed per config and every run that has a note.
   identical for the whole experiment.
 - **Budget the experiment.** 3 configs x 3 use cases x 5 repeats = 45 agent runs plus 45 judge
   calls. Run `--dry-run` first, then one repeat (`--runs 1`) to see per-run cost before scaling up.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Standard-library `unittest`, and no model calls: a fake `claude` stands in for the CLI, and
+workspaces and the launcher installer run in temporary directories. CI runs the suite on Python
+3.8 and 3.14, and lints `bench.py` and the tests with pylint.
 
 ## Known limits
 

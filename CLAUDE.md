@@ -24,7 +24,8 @@ verdict and an optional LLM-judge score. The configs double as the owner's daily
 | `install-launchers.sh` | Links the configs onto `PATH` as `oclaude-<name>`, keeping replaced regular files as `.bak` |
 | `usecases/<name>/` | `prompt.md` (frontmatter and prompt), `workspace/`, `check.sh`, `rubric.md`, optional `setup.sh`; folders starting with `_` are ignored |
 | `results/runs.csv`, `results/summary.md` | Append-only run log and its summary; `results/raw/` is gitignored |
-| `.pylintrc`, `.github/workflows/pylint.yml` | Lint configuration and CI |
+| `tests/` | `unittest` suite; a fake `claude` (`tests/helpers.py`) stands in for the CLI, so no model is called |
+| `.pylintrc`, `.github/workflows/` | Lint configuration; CI runs pylint, and the tests on Python 3.8 and 3.14 |
 
 ## Commands
 
@@ -34,7 +35,8 @@ python3 bench.py run --dry-run --runs 1 --no-judge   # print the exact commands;
 python3 bench.py smoke                               # one 1-turn call per config plus a judge call (costs usage)
 python3 bench.py run --runs 3 -u <usecase>           # the real experiment (costs usage)
 python3 bench.py summarize                           # tables on stdout and results/summary.md
-pylint bench.py                                      # the CI lint; .pylintrc is picked up automatically
+python3 -m unittest discover -s tests -v            # the test suite: needs bash and git, calls no model
+PYTHONPATH=. pylint bench.py tests/*.py             # the CI lint; .pylintrc is picked up automatically
 ```
 
 `smoke` and `run` call models and cost real usage. Run them only when asked; check changes with
@@ -42,20 +44,20 @@ pylint bench.py                                      # the CI lint; .pylintrc is
 
 ## Checks
 
-There is no test suite. Before a commit, check the exact tree being committed:
+Before a commit, run these on the exact tree being committed:
 
-- `pylint bench.py` exits 0, with pylint 4.1.3 as in CI (it needs Python 3.10 or later).
-- `bench.py` compiles and `python3 bench.py list` works on the oldest Python you have and on a
-  current one. CI runs both on Python 3.8 and 3.14.
+- The test suite passes: `python3 -m unittest discover -s tests -v`, on the oldest Python you have
+  and on a current one. CI runs it on Python 3.8 and 3.14.
+- `PYTHONPATH=. pylint bench.py tests/*.py` exits 0, with pylint 4.1.3 as in CI (it needs Python
+  3.10 or later).
 - `bash -n` passes on every changed shell script.
-- For harness changes, `python3 bench.py run --dry-run --runs 1 --no-judge` succeeds. It creates
-  and removes a workspace but calls no model.
+- A changed behavior has a test that fails without the change.
 
 ## Conventions
 
 - **Python 3.8+, standard library only.** The README promises it and CI checks it: no third-party
   imports, and no 3.9+ features such as `str.removeprefix`, `dict | dict` or `list[int]`
-  annotations.
+  annotations. The tests follow the same rule, which is why they use `unittest`.
 - **Style.** %-formatting throughout, lines up to 180 characters, no per-function docstrings;
   `.pylintrc` encodes this. Keep pylint clean, and disable a message inline only with a reason.
 - **Configs.** Every config pins `--model` and `--effort`, ends with `exec claude … "$@"`, and, unless

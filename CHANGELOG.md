@@ -24,7 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, so a value exported in your shell cannot leak in.
 - An example use case (`example-fix-tests`), a use-case template, `PLAN.md` with the experiment
   design, and the results of a first calibration pass.
-- CI: pylint on `bench.py`, plus a compile-and-list check on Python 3.8 and 3.14.
+- CI: pylint on `bench.py` and the tests; the tests and a compile-and-list check on Python 3.8
+  and 3.14.
+- A `unittest` suite in `tests/`, with no model calls: parsing and cost accounting, config and
+  use-case discovery, the environment clean-up, workspaces and the check runner, timeouts, every
+  preset against a fake `claude`, the launcher installer and the command line.
 - `CLAUDE.md` and `AGENTS.md` with instructions for coding agents working on this repository.
 
 ### Fixed

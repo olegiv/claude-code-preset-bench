@@ -18,11 +18,12 @@ Before presenting a change as ready for commit approval or push:
 2. Trace the change through its callers and consumers. A config feeds both the launcher installed
    from it and the benchmark arm it defines; a `bench.py` change reaches the `list`, `smoke`, `run`
    and `summarize` paths that call it.
-3. Exercise it without model calls where possible: `bash -n`, a fake `claude` placed first on
-   `PATH` that prints its arguments and environment, `bench.py list` and `--dry-run`. Record
-   anything left unexecuted, such as a path only a paid run reaches, and do not claim it was tested.
-4. Report the baseline checks from `CLAUDE.md` (pylint, and compile and `list` on Python 3.8 and a
-   current version) separately from the checks of the changed behavior.
+3. Exercise it without model calls: add or extend a test in `tests/` (`tests/helpers.py` provides a
+   fake `claude` that prints its arguments and environment), and use `bench.py list` and
+   `--dry-run`. Record anything left unexecuted, such as a path only a paid run reaches, and do not
+   claim it was tested.
+4. Report the baseline checks from `CLAUDE.md` (the test suite on Python 3.8 and a current version,
+   and pylint) separately from the checks of the changed behavior.
 5. Bind the evidence to the exact tree being committed, and refresh it after any further change.
 
 Pure wording or formatting edits need only a structural check.
