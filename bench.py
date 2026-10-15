@@ -107,7 +107,7 @@ def write(path, text):
 
 def sh(cmd, cwd=None, env=None, timeout=600, check=False):
     p = subprocess.run(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                       text=True, timeout=timeout)
+                       text=True, timeout=timeout, check=False)
     if check and p.returncode != 0:
         raise RuntimeError("command failed (%d): %s\n%s" % (p.returncode, " ".join(cmd), p.stderr[-2000:]))
     return p
@@ -209,7 +209,7 @@ def claude_version():
     try:
         p = sh(["claude", "--version"], timeout=60)
         return (p.stdout or p.stderr).strip().splitlines()[0]
-    except Exception as e:  # noqa
+    except Exception as e:  # pylint: disable=broad-exception-caught
         return "unknown (%s)" % e
 
 
@@ -235,7 +235,7 @@ def clean_env():
 GIT_ID = ["-c", "user.name=ccbench", "-c", "user.email=ccbench@local", "-c", "commit.gpgsign=false"]
 
 
-def make_workspace(uc, run_id, env):
+def make_workspace(uc, env):
     parent = tempfile.mkdtemp(prefix="ccbench-")
     path = os.path.join(parent, "ws")
     if uc["repo"]:
@@ -269,7 +269,7 @@ def destroy_workspace(uc, path, env, keep=False):
             sh(["git", "-C", uc["repo"], "worktree", "remove", "--force", path], env=env)
             sh(["git", "-C", uc["repo"], "worktree", "prune"], env=env)
         shutil.rmtree(os.path.dirname(path), ignore_errors=True)
-    except Exception as e:  # noqa
+    except Exception as e:  # pylint: disable=broad-exception-caught
         log("  WARNING: could not clean workspace %s: %s" % (path, e))
 
 
@@ -281,7 +281,7 @@ def collect_diff(path, env):
         patch = sh(["git", "diff", "--cached", "HEAD", "--no-color"], cwd=path, env=env).stdout
         n = len([x for x in names.splitlines() if x.strip()])
         return patch, n
-    except Exception as e:  # noqa
+    except Exception as e:  # pylint: disable=broad-exception-caught
         return "(diff unavailable: %s)" % e, ""
 
 
@@ -291,7 +291,8 @@ def run_claude(cmd, cwd, env, timeout):
     """Run a claude command line, return (exit_code, stdout, stderr, wall_s, timed_out)."""
     t0 = time.monotonic()
     timed_out = False
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    # Not a with-block: its exit would wait() and could hang if the kill below fails.
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,  # pylint: disable=consider-using-with
                          text=True, start_new_session=True)
     try:
         out, err = p.communicate(timeout=timeout)
@@ -300,7 +301,7 @@ def run_claude(cmd, cwd, env, timeout):
         for sig in (signal.SIGTERM, signal.SIGKILL):
             try:
                 os.killpg(os.getpgid(p.pid), sig)
-            except Exception:  # noqa
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
             try:
                 out, err = p.communicate(timeout=20)
@@ -398,7 +399,7 @@ def run_judge(uc, prompt, result_text, patch, check_summary, judge_model, judge_
     )
     cmd = ["claude", "-p", judge_prompt, "--model", judge_model, "--effort", judge_effort,
            "--json-schema", JUDGE_SCHEMA] + JUDGE_FLAGS
-    code, out, err, wall, timed_out = run_claude(cmd, cwd, env, 600)
+    code, out, err, _, _ = run_claude(cmd, cwd, env, 600)
     data = parse_result_json(out)
     score, cost, raw = "", "", data
     if data:
@@ -441,7 +442,7 @@ def one_run(cfg, uc, rep, args, env, version):
     log("RUN %s" % run_id)
     ws = None
     try:
-        ws, kind, base = make_workspace(uc, run_id, env)
+        ws, kind, base = make_workspace(uc, env)
         row["workspace_kind"], row["base_commit"] = kind, base
         cmd = build_agent_cmd(cfg, uc)
         if args.dry_run:
@@ -483,7 +484,7 @@ def one_run(cfg, uc, rep, args, env, version):
         log("  %s | %s | %.0fs | $%s | %s turns | main %s | models %s" % (
             row.get("subtype"), cfg["name"], wall, row.get("total_cost_usd") or "-", row.get("num_turns") or "-",
             row.get("main_model") or "-", row.get("models_used") or "-"))
-    except Exception as e:  # noqa
+    except Exception as e:  # pylint: disable=broad-exception-caught
         row["subtype"] = row.get("subtype") or "harness_error"
         notes.append("harness error: %s" % str(e)[:300])
         log("  ERROR: %s" % e)
@@ -552,7 +553,7 @@ def cmd_smoke(args):
                 continue
             cmd = ["bash", cfg["path"], "-p", prompt] + HEADLESS_FLAGS + ["--max-turns", "1", "--max-budget-usd", "2"]
             log("smoke %s: %s" % (name, cfg["desc"]))
-            code, out, err, wall, timed_out = run_claude(cmd, tmp, env, 300)
+            code, out, err, wall, _ = run_claude(cmd, tmp, env, 300)
             data = parse_result_json(out)
             m = extract_metrics(data, cfg["advisor"])
             if not data:
@@ -578,7 +579,7 @@ def cmd_smoke(args):
             rubric_path = os.path.join(tmp, "rubric.md")
             write(rubric_path, "Score 10 if the agent's final message is exactly 'OK', otherwise 0.")
             uc["rubric"] = rubric_path
-            score, cost, raw = run_judge(uc, prompt, "OK", "", "", args.judge_model, args.judge_effort, env, tmp)
+            score, cost, _ = run_judge(uc, prompt, "OK", "", "", args.judge_model, args.judge_effort, env, tmp)
             log("  judge score=%s cost=$%s %s" % (score, cost, "(OK)" if score == 10 else "(unexpected - inspect)"))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -690,7 +691,7 @@ def cmd_summarize(args):
     print("\nsummary written to %s" % SUMMARY_PATH)
 
 
-def cmd_list(args):
+def cmd_list(_args):
     print("configs (%s):" % CONFIGS_DIR)
     for n, c in list_configs().items():
         print("  %-12s model=%-8s advisor=%-8s subagents=%-8s  %s" % (n, c["model"] or "(settings)", c["advisor"] or "-", c["subagent_model"] or "(default)", c["desc"]))

@@ -1,0 +1,22 @@
+# Pylint settings for bench.py; CI runs `pylint bench.py` (.github/workflows/pylint.yml).
+# Only the deliberate style is switched off, so warnings and errors still fail the build.
+
+[MAIN]
+# README promises Python 3.8+.
+py-version = 3.8
+
+[FORMAT]
+# Long log and format strings are part of the style; this caps the extremes.
+max-line-length = 180
+
+[MESSAGES CONTROL]
+# %-formatting is used throughout on purpose; a single-file CLI needs no per-function
+# docstrings; the command functions are long by design, one per subcommand.
+disable =
+    consider-using-f-string,
+    missing-function-docstring,
+    too-many-locals,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-statements,
+    too-many-branches,
