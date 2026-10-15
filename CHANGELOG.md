@@ -25,3 +25,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An example use case (`example-fix-tests`), a use-case template, `PLAN.md` with the experiment
   design, and the results of a first calibration pass.
 - CI: pylint on `bench.py`, plus a compile-and-list check on Python 3.8 and 3.14.
+- `CLAUDE.md` and `AGENTS.md` with instructions for coding agents working on this repository.
