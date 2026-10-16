@@ -109,6 +109,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, known limit (M20): `cmd/meowdoku` is checked on a random `-addr`, never on its default `127.0.0.1:8080`, which may be in use on the grading machine.
 - UC4, known limit: code that prints PASS lines and exits 0 before any test runs is still counted → closing it needs a results channel the code under test cannot write.
 - UC4, known limit: determinism is checked on nine seeds (twice, and in a second process) → a generator that drifts on repeated calls for other seeds passes (self-test `generate-repeat-differs`).
+- UC4, known limit: `TestHiddenConcurrent` creates four games at once under a 60 s watchdog each → a handler that holds its lock while generating, with a generator near 2 s (about 17 s under `-race`), fails although it meets the contract.
 - UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
 
 ## Findings so far
@@ -248,3 +249,16 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   check now accepts `data-hx-post` and `data-hx-action` as htmx does; the state parser rejects
   `null` inside `regions` and `conflicts` (`json.Unmarshal` made it 0); and every bounded step
   now kills what is left in its process group when it exits normally, not only on timeout.
+- 2026-10-16 — PR 2 review, second pass (Codex, one P1, two P2). Nothing capped what the
+  candidate's code writes into the grader's logs, so a test that floods stdout could fill the
+  disk within its time cap. Every step, the `-addr` server included, now runs under `ulimit -f`
+  at 128 MB (Go's own build files stay under about 15 MB; at 1 MB the linker fails), and a log
+  that reaches the cap fails the check. Go ignores `SIGXFSZ`, so a flooding program gets write
+  errors and runs on to its time cap without growing the file. Without curl the `-addr` gate
+  only warned, so a run could pass unchecked; it now fails. The markup tokenizer took
+  `<script … />` as closed, while browsers ignore the `/` and read on as script text; `script`,
+  `style`, `textarea` and `title` now ignore it too. The local review added two items: the
+  redirect check accepted a `Location` on another server as long as its path was `/games/{id}`
+  (it now also requires this server's scheme and host), and four serialized creations by a
+  lock-holding handler with a near-limit generator can outlast the 60 s watchdog (recorded as a
+  known limit).

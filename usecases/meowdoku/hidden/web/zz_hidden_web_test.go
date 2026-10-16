@@ -198,10 +198,11 @@ func hiddenGameID(r hiddenResp) (string, string) {
 	if err != nil {
 		return "", fmt.Sprintf("bad Location %q: %v", r.header.Get("Location"), err)
 	}
-	base, _ := url.Parse("http://example.com/games")
-	m := hiddenGamePath.FindStringSubmatch(base.ResolveReference(loc).Path)
-	if m == nil {
-		return "", fmt.Sprintf("Location %q is not /games/{id} with id matching [A-Za-z0-9_-]{1,64}", r.header.Get("Location"))
+	base, _ := url.Parse("http://example.com/games") // httptest's default host
+	u := base.ResolveReference(loc)
+	m := hiddenGamePath.FindStringSubmatch(u.Path)
+	if m == nil || u.Scheme != base.Scheme || u.Host != base.Host {
+		return "", fmt.Sprintf("Location %q is not /games/{id} on this server with id matching [A-Za-z0-9_-]{1,64}", r.header.Get("Location"))
 	}
 	return m[1], ""
 }
@@ -379,7 +380,7 @@ func hiddenTokens(s string) []hiddenTag {
 			tag, next := hiddenStartTag(s, i)
 			out = append(out, tag)
 			i = next
-			if hiddenRawText[tag.name] && !tag.selfClosing {
+			if hiddenRawText[tag.name] { // browsers ignore a "/>" here: the raw text runs to the end tag
 				end := strings.Index(lower[i:], "</"+tag.name)
 				if end < 0 {
 					return out

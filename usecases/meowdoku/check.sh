@@ -17,6 +17,11 @@ export GOTOOLCHAIN=local GOPROXY=off GOWORK=off GOFLAGS=-mod=readonly GOENV=off 
 BUDGET=750
 T0=$SECONDS
 
+# Every file a step writes is capped at LOG_LIMIT_KB KiB (ulimit -f), so the candidate's output
+# cannot fill the disk, and a log that reaches the cap fails the check. Go's own build files stay
+# far below it (about 15 MB at most).
+LOG_LIMIT_KB=131072
+
 # bounded CAP command...: run command in its own process group for at most min(CAP, time left)
 # seconds; on timeout, or when this script is terminated, kill the whole group. When the command
 # exits by itself, whatever it left running in its group is killed too. Exit 124 on timeout,
@@ -39,11 +44,12 @@ bounded() {
   left=$((BUDGET - (SECONDS - T0)))
   [ "$left" -lt "$cap" ] && cap=$left
   [ "$cap" -le 0 ] && return 124
-  perl -e "$RUNNER" "$cap" "$@"
+  (ulimit -f "$LOG_LIMIT_KB" 2>/dev/null; exec perl -e "$RUNNER" "$cap" "$@")
 }
 
-# Indented tail of a log, so failures are readable in the full log.
-show() { tail -n "${2:-40}" "$1" | sed 's/^/    /'; }
+# Indented tail of a log, so failures are readable in the full log. A log cut off at the cap
+# rarely ends in a newline; one is added, so the next line of this output starts on its own.
+show() { tail -n "${2:-40}" "$1" | sed 's/^/    /'; [ -n "$(tail -c 1 "$1")" ] && echo; return 0; }
 
 # timed_out STATUS: says why a bounded step stopped.
 timed_out() { [ "$1" -eq 124 ] && echo " (stopped: time limit)"; }
@@ -236,12 +242,13 @@ main() {
     show "$TMP/cmd.log" 10
     soft_failed=$((soft_failed + 1))
   elif ! command -v curl >/dev/null 2>&1; then
-    echo "WARN: no curl; cmd/meowdoku builds, -addr not tried"
+    echo "FAIL: no curl, so -addr could not be tried (cmd/meowdoku builds)"
+    soft_failed=$((soft_failed + 1))
   else
     local served="" port spid i
     port=$(perl -MIO::Socket::INET -e 'my $s = IO::Socket::INET->new(Listen => 1, LocalAddr => "127.0.0.1", LocalPort => 0) or exit 1; print $s->sockport')
     if [ -n "$port" ] && [ $((BUDGET - (SECONDS - T0))) -gt 30 ]; then
-      perl -e "$RUNNER" 30 "$TMP/meowdoku" -addr "127.0.0.1:$port" >"$TMP/serve.log" 2>&1 &
+      (ulimit -f "$LOG_LIMIT_KB" 2>/dev/null; exec perl -e "$RUNNER" 30 "$TMP/meowdoku" -addr "127.0.0.1:$port") >"$TMP/serve.log" 2>&1 &
       spid=$!
       for i in $(seq 60); do
         kill -0 "$spid" 2>/dev/null || break
@@ -349,6 +356,15 @@ main() {
   # timeout) fails the check even when every test reported a pass.
   if [ "$score" = "1.00" ] && { [ "$rc_engine" -ne 0 ] || [ "$rc_web" -ne 0 ]; }; then
     echo "FAIL: hidden test binaries exited with $rc_engine (engine) and $rc_web (web)"
+    soft_failed=$((soft_failed + 1))
+  fi
+
+  local capped=""
+  for f in "$TMP"/*.log "$TMP"/*.json "$TMP"/*.err; do
+    [ -f "$f" ] && [ "$(wc -c <"$f")" -ge $((LOG_LIMIT_KB * 1024)) ] && capped="$capped ${f##*/}"
+  done
+  if [ -n "$capped" ]; then
+    echo "FAIL: output cut off at the $((LOG_LIMIT_KB / 1024)) MB cap:$capped"
     soft_failed=$((soft_failed + 1))
   fi
 

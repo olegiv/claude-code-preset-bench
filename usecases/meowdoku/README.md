@@ -54,7 +54,7 @@ sections below that use them say so.
   problem (exit 2, score 0.00).
 - **No network for grading.** `check.sh` sets `GOPROXY=off`, so a third-party import fails the build.
 - **perl**, which `check.sh` uses to run each step in its own process group under a time limit,
-  and **curl**, for the `-addr` check (without curl that check is skipped with a warning).
+  and **curl**, for the `-addr` check (without curl that gate fails, so no run can pass).
 - **A C toolchain** (Xcode Command Line Tools on macOS) for the race detector. Without one,
   `check.sh` prints `WARN: no -race`, runs every `go` command with `CGO_ENABLED=0` and the web
   tests without `-race`, and can no longer catch an unguarded game store.
@@ -153,11 +153,14 @@ a go env file the agent may have written with `go env -w`.
 
 The whole check has a budget of 750 s. Each step runs in its own process group under a cap, or
 under what is left of the budget if that is less, and the whole group is killed when time runs
-out or when the step ends, so nothing it started outlives it. The worst case ends a few seconds after the budget (the
-stopped step's grace period, then the summary), under 780 s; `check.sh` prints its total time on
-the line before its verdict. Caps: `go build` 300 s, `gofmt` 120 s, `go vet` 300 s, the
-agent's tests 300 s (with `-timeout 240s`), building `cmd/meowdoku` 180 s, each `go list` 120 s,
-the hidden engine tests 240 s (`-timeout 180s`) and the hidden web tests 480 s (`-timeout 450s`).
+out or when the step ends, so nothing it started outlives it. The worst case ends a few seconds
+after the budget (the stopped step's grace period, then the summary), under 780 s; `check.sh`
+prints its total time on the line before its verdict. Every file a step writes is capped at
+128 MB (`ulimit -f`; Go's own build files stay under about 15 MB), so the agent's output cannot
+fill the disk, and a log that reaches the cap fails the check. Caps: `go build` 300 s, `gofmt`
+120 s, `go vet` 300 s, the agent's tests 300 s (with `-timeout 240s`), building `cmd/meowdoku`
+180 s, each `go list` 120 s, the hidden engine tests 240 s (`-timeout 180s`) and the hidden web
+tests 480 s (`-timeout 450s`).
 
 1. **Harness check.** `go` and `perl` must be on `PATH` and `go env GOVERSION` must be go1.27 or
    later. Otherwise: `FAIL: harness: ...`, `0.00`, exit 2. Then `-race` is probed once, by
@@ -208,7 +211,7 @@ the hidden engine tests 240 s (`-timeout 180s`) and the hidden web tests 480 s (
    scores 0 for its tests.
 6. **Exit.** 0 only when every gate passed, the score is 1.00 and both hidden test binaries exited
    0; otherwise 1. A binary that exits non-zero after every test passed (a crash, a race report, a
-   timeout) is reported as a failed gate.
+   timeout) is reported as a failed gate, and so is a log cut off at the 128 MB cap.
 
 The temporary directory belongs to the top-level shell and its EXIT trap, so it is removed in the
 logging path too (bash 3.2 runs no EXIT trap in the subshell of a pipeline). When `RESULT_JSON` is
@@ -251,7 +254,7 @@ All requests go through `NewHandler().ServeHTTP` with `httptest`, no sockets. Ce
 |---|---|
 | `TestHiddenIndex` | `GET /` is 200 `text/html`, loads both scripts from this server, and has a form (or htmx element, `hx-` or `data-hx-`) that posts to `/games` |
 | `TestHiddenStatic` | Both scripts are 200 with exactly the vendored bytes |
-| `TestHiddenCreateGame` | `POST /games` with `seed=42` is 303 to `/games/{id}` (`[A-Za-z0-9_-]{1,64}`); the page is 200 `text/html`, loads both scripts from this server, has `#board` with `data-won="false"` and 100 empty cells whose `data-region` values form the same partition as `engine.Generate(42).Regions` |
+| `TestHiddenCreateGame` | `POST /games` with `seed=42` is 303 to `/games/{id}` on this server (`[A-Za-z0-9_-]{1,64}`); the page is 200 `text/html`, loads both scripts from this server, has `#board` with `data-won="false"` and 100 empty cells whose `data-region` values form the same partition as `engine.Generate(42).Regions` |
 | `TestHiddenState` | JSON content type; all six fields with the right JSON types (no `null` inside `regions` or `conflicts`); the id, seed 42, the regions, an empty board, `conflicts` as `[]` (not `null`), `won` false; a game with seed `-9223372036854775808` reports exactly that seed |
 | `TestHiddenRandomSeed` | `seed` absent or empty: 303, the JSON seed's `Generate` regions match, and the two games get different ids and different seeds |
 | `TestHiddenMoves` | `mark`, `cat`, `empty` (each twice) on one cell: 200 `text/html` with a `#board` fragment of 100 cells showing that state; the JSON and the full page agree; repeating a state changes nothing |
@@ -288,8 +291,9 @@ A bad build must fail tests, not crash or stall the package:
 - `Generate` results are cached per seed (package-level test state, keyed by seed), so even a
   generator that takes close to 2 s per call makes about 50 calls in the engine package.
 - Markup is read with a small tokenizer: comments, doctypes and the content of `script`, `style`,
-  `textarea` and `title` are skipped; end tags close any elements left open inside them, as
-  browsers do; attributes may come in any order. A cell is an element nested in `#board` with
+  `textarea` and `title` are skipped (also after a `/>`, which browsers ignore on these); end
+  tags close any elements left open inside them, as browsers do; attributes may come in any
+  order. A cell is an element nested in `#board` with
   `data-row`, `data-col` and `data-state`; its hook attributes must use double quotes, as the
   prompt asks. Elements outside `#board` are ignored.
 - Script URLs (and the start form's target) are resolved against the page URL and the first
@@ -558,6 +562,10 @@ win panel, 375 px width and dark mode.
   `generate-repeat-differs`, in the `limits` group).
 - **Harness faults** (no Go 1.27+, no perl) reach the CSV and the judge as FAIL 0.00, like a
   hard-gate failure; only the `.check.log` tells them apart.
+- **Serialized creation under `-race`.** `TestHiddenConcurrent` creates four games at once, each
+  under the 60 s watchdog. A handler that holds its store lock while it generates, with a
+  generator near the 2 s limit (about 17 s per call under `-race`), finishes the last creation
+  after about 68 s and fails, although it meets the contract.
 - **No process isolation.** A stalled handler's goroutine keeps running inside the hidden test
   binary; the watchdogs bound the wait, not the CPU it uses.
 - **The default address** of `cmd/meowdoku` (`127.0.0.1:8080`) is never tried, only a random

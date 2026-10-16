@@ -35,7 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scores the fraction passed, behind hard gates (go.mod and the two vendored scripts untouched,
   an offline build that admits no third-party modules) and soft gates (gofmt, vet, the agent's own tests, a
   `cmd/meowdoku` that serves `-addr`, an engine without I/O imports, `html/template`, `embed`),
-  all inside a 750 s budget with every step in its own process group. Results come from
+  all inside a 750 s budget with every step in its own process group and every file it writes
+  capped at 128 MB. Results come from
   `go test -json`, so a printed PASS line cannot outweigh a failure. `rubric.md` guides the judge.
   Grading needs Go 1.27 or later and perl, and a C toolchain only for `-race`. Its caps are
   provisional. Alpine.js's MIT notice ships next to the vendored file.
