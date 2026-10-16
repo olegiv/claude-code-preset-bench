@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use-case discovery, the environment clean-up, workspaces and the check runner, timeouts, every
   preset against a fake `claude`, the launcher installer and the command line.
 - `CLAUDE.md` and `AGENTS.md` with instructions for coding agents working on this repository.
+- A `meowdoku` use case: each arm builds a 10×10 logic-puzzle web game in Go 1.27 with the
+  vendored htmx 4.0.0 and Alpine.js 3.17.4. `check.sh` runs 20 hidden Go acceptance tests and
+  scores the fraction passed, behind hard gates (go.mod and the two vendored scripts untouched,
+  an offline build that admits no third-party modules) and soft gates (gofmt, vet, the agent's own tests, a
+  `cmd/meowdoku` that serves `-addr`, an engine without I/O imports, `html/template`, `embed`),
+  all inside a 750 s budget with every step in its own process group. Results come from
+  `go test -json`, so a printed PASS line cannot outweigh a failure. `rubric.md` guides the judge.
+  Grading needs Go 1.27 or later and perl. Its caps are provisional.
+  Reference solutions go in `usecases/*/reference/`, which is gitignored.
+  `usecases/meowdoku/README.md` documents running it, the grading, the hidden tests, the
+  reference solution and maintenance.
 
 ### Fixed
 

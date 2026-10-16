@@ -47,6 +47,12 @@ usecases/
     workspace/                          files copied into a fresh temp dir for every run
     check.sh                            deterministic grader (exit 0 = pass)
     rubric.md                           LLM-judge rubric (0-10)
+  meowdoku/                             greenfield Go 1.27 + htmx 4 puzzle game; grading needs Go 1.27+
+    README.md                           how to run it, how it is graded, the hidden tests, maintenance
+    prompt.md, workspace/, rubric.md    workspace/ holds go.mod and the vendored htmx and Alpine.js
+    check.sh                            gates plus hidden acceptance tests; the score is the fraction passed
+    hidden/                             the hidden Go tests check.sh copies in; never shown to the agent
+    reference/                          local only (gitignored, not in the repository): reference solution, selftest.sh
   _template/                            copy to usecases/<name>/ ; folders starting with _ are ignored
 results/
   runs.csv                              one row per run (append-only)
@@ -56,6 +62,7 @@ results/
   raw/<run_id>.diff.patch               git diff of the workspace after the run
   raw/<run_id>.stderr.txt               CLI stderr
   raw/<run_id>.judge.json               judge call result
+  raw/<run_id>.check.log                full check.sh output, when the use case's check.sh writes it (meowdoku's does)
 ```
 
 ## Configs = launchers

@@ -1,2 +1,3 @@
 results/raw/
 __pycache__/
+usecases/*/reference/
