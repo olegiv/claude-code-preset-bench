@@ -260,6 +260,12 @@ func hiddenParseState(body string) (hiddenState, error) {
 	default:
 		return st, fmt.Errorf("won is %s, want true or false", won)
 	}
+	// json.Unmarshal turns a null element into 0, so the integer arrays are checked for null first.
+	for _, k := range []string{"regions", "conflicts"} {
+		if bytes.Contains(raw[k], []byte("null")) {
+			return st, fmt.Errorf("%s is %s, want integers, not null", k, raw[k])
+		}
+	}
 	var regions [][]int
 	if err := json.Unmarshal(raw["regions"], &regions); err != nil {
 		return st, fmt.Errorf("regions: %v", err)
@@ -587,10 +593,12 @@ func hiddenDocBase(pageURL string, tokens []hiddenTag) *url.URL {
 	return base
 }
 
-// hiddenLocal resolves ref on the page and returns its path when it stays on this server.
-func hiddenLocal(base *url.URL, ref string) (string, bool) {
+// hiddenLocal resolves ref against the document base and returns its path when it stays on the
+// page's own server: a <base href> that points elsewhere does not make another server local.
+func hiddenLocal(pageURL string, base *url.URL, ref string) (string, bool) {
+	page, perr := url.Parse(pageURL)
 	u, err := base.Parse(ref)
-	if err != nil || u.Scheme != base.Scheme || u.Host != base.Host {
+	if perr != nil || err != nil || u.Scheme != page.Scheme || u.Host != page.Host {
 		return "", false
 	}
 	return u.Path, true
@@ -603,7 +611,7 @@ func hiddenScriptPaths(pageURL, body string) map[string]bool {
 	paths := map[string]bool{}
 	for _, tag := range tokens {
 		if src, ok := tag.attrs["src"]; ok && tag.name == "script" && src != "" {
-			if p, local := hiddenLocal(base, src); local {
+			if p, local := hiddenLocal(pageURL, base, src); local {
 				paths[p] = true
 			}
 		}
@@ -617,17 +625,24 @@ func hiddenStartsGame(pageURL, body string) bool {
 	tokens := hiddenTokens(body)
 	base := hiddenDocBase(pageURL, tokens)
 	toGames := func(ref string) bool {
-		p, local := hiddenLocal(base, ref)
+		p, local := hiddenLocal(pageURL, base, ref)
 		return local && p == "/games"
+	}
+	// htmx reads hx-<name> and, when that is absent, data-hx-<name> (its default prefix).
+	hx := func(tag hiddenTag, name string) string {
+		if v, ok := tag.attrs["hx-"+name]; ok {
+			return v
+		}
+		return tag.attrs["data-hx-"+name]
 	}
 	for _, tag := range tokens {
 		switch {
 		case tag.end:
 		case tag.name == "form" && strings.EqualFold(tag.attrs["method"], "post") && toGames(tag.attrs["action"]):
 			return true
-		case tag.attrs["hx-post"] != "" && toGames(tag.attrs["hx-post"]):
+		case hx(tag, "post") != "" && toGames(hx(tag, "post")):
 			return true
-		case tag.attrs["hx-action"] != "" && strings.EqualFold(tag.attrs["hx-method"], "post") && toGames(tag.attrs["hx-action"]):
+		case hx(tag, "action") != "" && strings.EqualFold(hx(tag, "method"), "post") && toGames(hx(tag, "action")):
 			return true
 		}
 	}

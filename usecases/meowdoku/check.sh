@@ -6,8 +6,10 @@
 # Needs go (1.27+), perl, and curl for the -addr check.
 set -u
 
-# GOENV=off ignores a go env file the agent may have written with `go env -w`.
-export GOTOOLCHAIN=local GOPROXY=off GOWORK=off GOFLAGS= GOENV=off CGO_ENABLED=1
+# GOENV=off ignores a go env file the agent may have written with `go env -w`. CGO_ENABLED=1 is
+# for -race; main lowers it to 0 when the race probe fails. -mod=readonly ignores a vendor/
+# directory, so third-party code cannot come in that way either.
+export GOTOOLCHAIN=local GOPROXY=off GOWORK=off GOFLAGS=-mod=readonly GOENV=off CGO_ENABLED=1
 
 # The whole check has BUDGET seconds and every step gets at most what is left. The worst case
 # ends a few seconds after the budget (the stopped step's grace period, then the summary), well
@@ -16,8 +18,9 @@ BUDGET=750
 T0=$SECONDS
 
 # bounded CAP command...: run command in its own process group for at most min(CAP, time left)
-# seconds; on timeout, or when this script is terminated, kill the whole group. Exit 124 on
-# timeout, otherwise the command's status.
+# seconds; on timeout, or when this script is terminated, kill the whole group. When the command
+# exits by itself, whatever it left running in its group is killed too. Exit 124 on timeout,
+# otherwise the command's status.
 RUNNER='
   my $limit = shift;
   my $pid = fork; die "fork: $!" unless defined $pid;
@@ -26,7 +29,9 @@ RUNNER='
   $SIG{ALRM} = sub { $stop->(124) };
   $SIG{TERM} = sub { $stop->(143) };
   alarm $limit; waitpid($pid, 0); alarm 0;
-  exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+  my $status = $?;
+  kill "KILL", -$pid;
+  exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
 '
 bounded() {
   local cap=$1 left
@@ -136,6 +141,19 @@ main() {
     return 2
   fi
   echo "ok: harness: $gover"
+
+  # The race detector needs cgo and a C toolchain; probe it once, independently of the agent's code,
+  # before the first build: without a C toolchain CGO_ENABLED=1 fails any build that uses cgo, such
+  # as net on Linux, so a failed probe also turns cgo off.
+  local race="-race"
+  mkdir -p "$TMP/raceprobe"
+  printf 'module raceprobe\n' >"$TMP/raceprobe/go.mod"
+  printf 'package main\n\nfunc main() {}\n' >"$TMP/raceprobe/main.go"
+  if ! (cd "$TMP/raceprobe" && bounded 120 go build -race -o "$TMP/raceprobe/probe" .) >"$TMP/raceprobe.log" 2>&1; then
+    race=""
+    export CGO_ENABLED=0
+    echo "WARN: no -race"
+  fi
 
   # Hard gates: any failure scores 0.00. With go.mod unchanged and GOPROXY=off, the build below
   # also refuses third-party modules.
@@ -292,16 +310,6 @@ main() {
     show "$TMP/tally.log"
     echo "0.00"
     return 2
-  fi
-
-  # The race detector needs cgo and a C toolchain; probe it once, independently of the agent's code.
-  local race="-race"
-  mkdir -p "$TMP/raceprobe"
-  printf 'module raceprobe\n' >"$TMP/raceprobe/go.mod"
-  printf 'package main\n\nfunc main() {}\n' >"$TMP/raceprobe/main.go"
-  if ! (cd "$TMP/raceprobe" && bounded 120 go build -race -o "$TMP/raceprobe/probe" .) >"$TMP/raceprobe.log" 2>&1; then
-    race=""
-    echo "WARN: no -race"
   fi
 
   # -vet=off: vet is a soft gate above, so a vet finding must not also fail every hidden test.

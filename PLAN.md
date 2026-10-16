@@ -109,6 +109,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, known limit (M20): `cmd/meowdoku` is checked on a random `-addr`, never on its default `127.0.0.1:8080`, which may be in use on the grading machine.
 - UC4, known limit: code that prints PASS lines and exits 0 before any test runs is still counted → closing it needs a results channel the code under test cannot write.
 - UC4, known limit: determinism is checked on nine seeds (twice, and in a second process) → a generator that drifts on repeated calls for other seeds passes (self-test `generate-repeat-differs`).
+- UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
 
 ## Findings so far
 
@@ -230,4 +231,20 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   A full run under `/bin/bash` showed `concurrent-create-unlocked` passing once: the creations had
   outlasted the readers, so no read overlapped the unlocked insert. The readers now keep reading
   until every concurrent creation has finished.
-
+- 2026-10-16 — PR 2 review (Codex, four P1). `check.sh` forced `CGO_ENABLED=1`, so on a Linux
+  host without a C toolchain the hard-gate build failed in `runtime/cgo` (`net` uses cgo there)
+  before the race probe could turn `-race` off; reproduced with a Linux cross-build. The probe now
+  runs right after the harness check and sets `CGO_ENABLED=0` when it fails. Alpine.js's MIT
+  notice now ships next to the vendored file (its npm tarball has none; htmx is 0BSD). The claim
+  that the hidden tests never reach the agent was wrong: an unsandboxed arm can read or change
+  them, and read them on GitHub; recorded as an accepted limit under Threats to validity. Not
+  changed: committing the grader self-test, since the reference solution stays out of this
+  public repository by design. The local review added two items. The script and start-form
+  checks compared a resolved URL with the `<base href>` origin, so a base on a CDN made CDN
+  scripts count as local; they now compare with the page's own origin. A `vendor/` directory
+  could not bring in third-party code on go1.27.2 (six `modules.txt` layouts tried, all refused
+  while `go.mod` is unchanged), but `GOFLAGS=-mod=readonly` now ignores it anyway. Its second
+  pass found three more, fixed on the owner's override without a further review: the start-page
+  check now accepts `data-hx-post` and `data-hx-action` as htmx does; the state parser rejects
+  `null` inside `regions` and `conflicts` (`json.Unmarshal` made it 0); and every bounded step
+  now kills what is left in its process group when it exits normally, not only on timeout.

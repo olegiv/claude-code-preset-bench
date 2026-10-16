@@ -13,3 +13,4 @@ alpine.min.js
   tarball: https://registry.npmjs.org/alpinejs/-/alpinejs-3.17.4.tgz
   file:    package/dist/cdn.min.js
   sha256:  232519394c6c8fdba6f362b1d9da16106db513cdbf899011f00daab4051df31c
+  license: MIT, see LICENSE-alpinejs.md (from the v3.17.4 tag; the tarball has none)

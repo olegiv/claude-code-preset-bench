@@ -20,9 +20,9 @@ Why it is in the experiment:
 It is graded twice: `check.sh` runs 20 hidden Go acceptance tests behind a few gates and reports the
 fraction passed as the score, and the judge scores the build from 0 to 10 with `rubric.md`.
 
-Nothing in this folder except `workspace/` reaches an agent: `bench.py` copies only `workspace/`
-into each run's temporary directory and passes only the body of `prompt.md`. This README, `hidden/`
-and `check.sh` stay here.
+`bench.py` gives an agent only `workspace/`, copied into each run's temporary directory, and the
+body of `prompt.md`. This README, `hidden/` and `check.sh` are not copied, but they are within the
+agent's reach (see [Limits](#limits-and-what-is-untested)).
 
 ## Files
 
@@ -34,6 +34,7 @@ and `check.sh` stay here.
 | `workspace/web/static/htmx.min.js` | yes | htmx.org 4.0.0, `package/dist/htmx.min.js` from the npm tarball |
 | `workspace/web/static/alpine.min.js` | yes | alpinejs 3.17.4, `package/dist/cdn.min.js` from the npm tarball |
 | `workspace/web/static/VERSIONS.txt` | yes | Package, version, tarball URL and SHA-256 of both files (informational; not gated) |
+| `workspace/web/static/LICENSE-alpinejs.md` | yes | Alpine.js's MIT notice, `LICENSE.md` from the v3.17.4 tag (the npm tarball has none); htmx is 0BSD and needs none |
 | `hidden/engine/zz_hidden_*_test.go` | yes | 9 acceptance tests, `package engine_test`, plus the test oracle |
 | `hidden/web/zz_hidden_*_test.go` | yes | 11 acceptance tests, `package web_test`, plus a copy of the oracle |
 | `check.sh` | yes | The deterministic grader |
@@ -55,8 +56,8 @@ sections below that use them say so.
 - **perl**, which `check.sh` uses to run each step in its own process group under a time limit,
   and **curl**, for the `-addr` check (without curl that check is skipped with a warning).
 - **A C toolchain** (Xcode Command Line Tools on macOS) for the race detector. Without one,
-  `check.sh` runs the web tests without `-race`, prints `WARN: no -race`, and can no longer catch an
-  unguarded game store.
+  `check.sh` prints `WARN: no -race`, runs every `go` command with `CGO_ENABLED=0` and the web
+  tests without `-race`, and can no longer catch an unguarded game store.
 - **bash** 3.2 or later (macOS `/bin/bash` works), git, and Python 3.8+ for `bench.py`.
   `selftest.sh` also uses `perl`, `dd`, `cmp`, `awk` and `gofmt`.
 
@@ -146,24 +147,30 @@ reference solution's diff is about 40 000 characters, so a complete build is nor
 ## How `check.sh` grades
 
 `bench.py` runs `bash check.sh` with the workspace as the working directory and a 900 s timeout.
-Every `go` command runs with `GOTOOLCHAIN=local GOPROXY=off GOWORK=off GOFLAGS= GOENV=off
-CGO_ENABLED=1`; `GOENV=off` ignores a go env file the agent may have written with `go env -w`.
+Every `go` command runs with `GOTOOLCHAIN=local GOPROXY=off GOWORK=off GOFLAGS=-mod=readonly
+GOENV=off CGO_ENABLED=1` (`CGO_ENABLED=0` once the race probe in step 1 fails); `GOENV=off` ignores
+a go env file the agent may have written with `go env -w`.
 
 The whole check has a budget of 750 s. Each step runs in its own process group under a cap, or
 under what is left of the budget if that is less, and the whole group is killed when time runs
-out, so nothing outlives the check. The worst case ends a few seconds after the budget (the
+out or when the step ends, so nothing it started outlives it. The worst case ends a few seconds after the budget (the
 stopped step's grace period, then the summary), under 780 s; `check.sh` prints its total time on
 the line before its verdict. Caps: `go build` 300 s, `gofmt` 120 s, `go vet` 300 s, the
 agent's tests 300 s (with `-timeout 240s`), building `cmd/meowdoku` 180 s, each `go list` 120 s,
 the hidden engine tests 240 s (`-timeout 180s`) and the hidden web tests 480 s (`-timeout 450s`).
 
 1. **Harness check.** `go` and `perl` must be on `PATH` and `go env GOVERSION` must be go1.27 or
-   later. Otherwise: `FAIL: harness: ...`, `0.00`, exit 2.
+   later. Otherwise: `FAIL: harness: ...`, `0.00`, exit 2. Then `-race` is probed once, by
+   building an empty program with it, so the decision does not depend on the agent's code. When
+   that fails (no C toolchain), `check.sh` prints `WARN: no -race` and sets `CGO_ENABLED=0` for
+   every later step: with cgo on and no C compiler, any build that uses cgo (`net`, on Linux)
+   fails.
 2. **Hard gates.** Any failure scores 0.00 and exits 1:
    - `go.mod`, `web/static/htmx.min.js` and `web/static/alpine.min.js` are byte-identical to
      `workspace/` here (`cmp -s`);
    - `go build ./...` succeeds offline. With `go.mod` unchanged and `GOPROXY=off`, that also refuses
-     third-party modules, so a `go.sum` is not checked.
+     third-party modules, so a `go.sum` is not checked; `-mod=readonly` ignores a `vendor/`
+     directory.
 3. **Soft gates.** A failure fails the check but keeps the score:
    - `gofmt -l .` prints nothing;
    - `go vet ./...` passes;
@@ -187,9 +194,8 @@ the hidden engine tests 240 s (`-timeout 180s`) and the hidden web tests 480 s (
    with or shadow the hidden ones. Then:
    - `go test -json -vet=off -count=1 -timeout 180s -run '^TestHidden' ./engine`, **without**
      `-race`, because these tests time `Generate`;
-   - the same for `./web` with `-timeout 450s` and **with** `-race`. Whether `-race` works is
-     decided once, by building an empty program with it, so the decision does not depend on the
-     agent's code.
+   - the same for `./web` with `-timeout 450s` and **with** `-race`, unless the probe in step 1
+     failed.
 
    `-vet=off`, because `go test` otherwise runs its own vet checks first, and one vet finding would
    fail every hidden test of the package although vet is only a soft gate.
@@ -243,10 +249,10 @@ All requests go through `NewHandler().ServeHTTP` with `httptest`, no sockets. Ce
 
 | Test | Checks |
 |---|---|
-| `TestHiddenIndex` | `GET /` is 200 `text/html`, loads both scripts from this server, and has a form (or htmx element) that posts to `/games` |
+| `TestHiddenIndex` | `GET /` is 200 `text/html`, loads both scripts from this server, and has a form (or htmx element, `hx-` or `data-hx-`) that posts to `/games` |
 | `TestHiddenStatic` | Both scripts are 200 with exactly the vendored bytes |
 | `TestHiddenCreateGame` | `POST /games` with `seed=42` is 303 to `/games/{id}` (`[A-Za-z0-9_-]{1,64}`); the page is 200 `text/html`, loads both scripts from this server, has `#board` with `data-won="false"` and 100 empty cells whose `data-region` values form the same partition as `engine.Generate(42).Regions` |
-| `TestHiddenState` | JSON content type; all six fields with the right JSON types; the id, seed 42, the regions, an empty board, `conflicts` as `[]` (not `null`), `won` false; a game with seed `-9223372036854775808` reports exactly that seed |
+| `TestHiddenState` | JSON content type; all six fields with the right JSON types (no `null` inside `regions` or `conflicts`); the id, seed 42, the regions, an empty board, `conflicts` as `[]` (not `null`), `won` false; a game with seed `-9223372036854775808` reports exactly that seed |
 | `TestHiddenRandomSeed` | `seed` absent or empty: 303, the JSON seed's `Generate` regions match, and the two games get different ids and different seeds |
 | `TestHiddenMoves` | `mark`, `cat`, `empty` (each twice) on one cell: 200 `text/html` with a `#board` fragment of 100 cells showing that state; the JSON and the full page agree; repeating a state changes nothing |
 | `TestHiddenConflicts` | Two cats in one row, one column, one region, and touching diagonally: the fragment's `data-conflict` and the JSON `conflicts` match the oracle; clearing them clears the conflicts |
@@ -286,8 +292,8 @@ A bad build must fail tests, not crash or stall the package:
   browsers do; attributes may come in any order. A cell is an element nested in `#board` with
   `data-row`, `data-col` and `data-state`; its hook attributes must use double quotes, as the
   prompt asks. Elements outside `#board` are ignored.
-- Script URLs are resolved against the page URL and the first `<base href>`, and must stay on this
-  server.
+- Script URLs (and the start form's target) are resolved against the page URL and the first
+  `<base href>`, and must stay on the page's own server, wherever `<base href>` points.
 
 ### Deliberate readings of the contract
 
@@ -518,7 +524,9 @@ win panel, 375 px width and dark mode.
   shasum -a 256 usecases/meowdoku/workspace/web/static/htmx.min.js                            # for VERSIONS.txt
   ```
 
-  For Alpine.js the package is `alpinejs` and the file `package/dist/cdn.min.js`. Update
+  For Alpine.js the package is `alpinejs` and the file `package/dist/cdn.min.js`; its tarball
+  carries no license, so replace `LICENSE-alpinejs.md` with `LICENSE.md` from the release tag
+  (`https://raw.githubusercontent.com/alpinejs/alpine/v<version>/LICENSE.md`). Update
   `VERSIONS.txt` and the versions named in `prompt.md`. `check.sh` compares against `workspace/`, so
   it needs no change. Results from different library versions are not comparable: note the change
   in `PLAN.md`.
@@ -531,6 +539,11 @@ win panel, 375 px width and dark mode.
 ## Limits and what is untested
 
 - Only a paid run reaches real agents, the judge and the caps; none of them has run yet.
+- **The hidden tests are not secret.** Each arm runs with `--dangerously-skip-permissions` as the
+  user who runs `bench.py`, so the agent can read, or change, `hidden/` and `check.sh` in this
+  checkout before they grade it. The repository is public and the prompt sends the agent to the
+  htmx docs on the web, so it can also read them on GitHub; a filesystem sandbox would stop the
+  changes, not the reading. Nothing detects either. This is an accepted limit.
 - **Judge-only requirements.** No check covers these; only the judge reads them, from the diff and
   the final message: cells as labelled buttons and the empty → mark → cat cycle, keyboard play,
   regions told apart without colour, the win message and locked board, error responses never

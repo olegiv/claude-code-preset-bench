@@ -51,7 +51,7 @@ usecases/
     README.md                           how to run it, how it is graded, the hidden tests, maintenance
     prompt.md, workspace/, rubric.md    workspace/ holds go.mod and the vendored htmx and Alpine.js
     check.sh                            gates plus hidden acceptance tests; the score is the fraction passed
-    hidden/                             the hidden Go tests check.sh copies in; never shown to the agent
+    hidden/                             the hidden Go tests check.sh copies in; not given to the agent
     reference/                          local only (gitignored, not in the repository): reference solution, selftest.sh
   _template/                            copy to usecases/<name>/ ; folders starting with _ are ignored
 results/
@@ -218,6 +218,9 @@ workspaces and the launcher installer run in temporary directories. CI runs the 
 
 - One run at a time; no concurrency (keeps timing comparable and avoids rate-limit effects).
 - `check.sh` runs on your machine with your tools; it is not sandboxed.
+- The agent is not sandboxed either: an arm runs with `--dangerously-skip-permissions`, as you,
+  with your files and network, so it can read or change this checkout, a use case's `check.sh`
+  and hidden tests included. Only the workspace and the prompt are given to it.
 - The judge's view of the diff is truncated at 60k characters and of the final message at 12k.
 - `repo:` worktrees start at `HEAD`; if the task needs uncommitted scaffolding, commit it on a
   branch first or put it in `workspace/` instead.
