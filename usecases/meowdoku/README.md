@@ -180,8 +180,9 @@ tests 480 s (`-timeout 450s`).
    - `engine/` and `web/` each contain at least one `func Test` in a `_test.go` file;
    - the agent's own `go test -count=1 -timeout 240s ./...` passes;
    - `cmd/meowdoku` builds and answers `GET /` on the address given by `-addr`. The port is one the
-     OS reports free; the check waits up to about 15 s for an answer while the server process is
-     still running (so no other process on that port can pass for it), then kills the server's
+     OS reports free; the check waits up to about 15 s for an answer (curl ignores proxy
+     variables for it) while the server process is still running (so no other process on that
+     port can pass for it), then kills the server's
      whole process group. The default `127.0.0.1:8080` is not tried, since it may be taken on the
      grading machine;
    - `engine`'s direct imports (`go list -f '{{join .Imports " "}}' ./engine`) include none of
@@ -238,7 +239,7 @@ leaves open.
 | `TestHiddenGenerateDeterministic` | Seeds 0, 1, 2, 42, 2026, −1, −7, `math.MinInt64`, `math.MaxInt64`: two fresh calls return equal puzzles, `.Seed == seed`, and a second process (the test binary run again) returns the same puzzles |
 | `TestHiddenGenerateValid` | Seeds 1–30 plus those: `.Seed == seed`, the oracle's layout check passes and `Validate()` returns nil |
 | `TestHiddenGenerateUnique` | The same seeds: the oracle counts exactly one solution |
-| `TestHiddenGenerateVaried` | Seeds 1–30 give at least 27 distinct layouts, compared after relabelling region ids, as the prompt requires |
+| `TestHiddenGenerateVaried` | Seeds 1–30 and seeds −30…−1 each give at least 27 distinct layouts, compared after relabelling region ids, as the prompt requires of any 30 consecutive seeds |
 | `TestHiddenGenerateSpeed` | Each call for seeds 1–30 finishes in under 2 s |
 | `TestHiddenValidate` | Rejects id 10, id −1, only 9 ids used, a region in two parts, and parts touching only diagonally; accepts rows, columns and 2×5 blocks as regions, the forced layout and a valid but unsolvable layout |
 | `TestHiddenCountSolutions` | Fixtures with 0, exactly 1 and 479 306 solutions, at limits −1, 0, 1, 2, 5, 1000 and 2^30: `min(count, limit)`, and 0 for a limit of 0 or less |
@@ -289,7 +290,8 @@ A bad build must fail tests, not crash or stall the package:
 - A test stops at its first watchdog timeout, and the concurrent workers stop at their first
   problem, so a hung build costs one watchdog per test and the packages stay inside their timeouts.
 - `Generate` results are cached per seed (package-level test state, keyed by seed), so even a
-  generator that takes close to 2 s per call makes about 50 calls in the engine package.
+  generator that takes close to 2 s per call makes about 80 calls (about 166 s) in the engine package,
+  inside its 180 s timeout.
 - Markup is read with a small tokenizer: comments, doctypes and the content of `script`, `style`,
   `textarea` and `title` are skipped (also after a `/>`, which browsers ignore on these); end
   tags close any elements left open inside them, as browsers do; attributes may come in any
@@ -386,8 +388,8 @@ reference, and every variant is gofmt'ed, so a soft-gate variant fails on its ow
 
 Groups: `default` must match; `limits` reproduces a known limit recorded in `PLAN.md`, with the
 result a complete grader would give, which this one does not (marked ≠); `slow` takes minutes.
-The *Item* column names the review item a variant reproduces (see `PLAN.md`; `lim` marks a known
-limit); the first twelve are the original variants. Results recorded on 2026-10-16 on the final
+The *Item* column names the review item a variant reproduces (see `PLAN.md`; `R3a`/`R3b` are the
+round-3 review threads; `lim` marks a known limit); the first twelve are the original variants. Results recorded on 2026-10-16 on the final
 grader; the default group (62 variants) gave the same verdicts under bash 5.3 and `/bin/bash`
 3.2:
 
@@ -451,11 +453,14 @@ grader; the default group (62 variants) gave the same verdicts under bash 5.3 an
 | `embed-in-cmd` | M27 | exit 1, <1, TestHiddenStatic | 1 | 0.95 | TestHiddenStatic; gate: go test ./... |
 | `both-template-packages` | M27 | exit 0, =1.00 | 0 | 1.00 | — |
 | `addr-port-random` | M20 | exit 0, =1.00 | 0 | 1.00 | — |
+| `reference-behind-proxy` | R3a | exit 0, =1.00 | 0 | 1.00 | — |
+| `generator-clamps-negative-seeds` | R3b | exit 1, <1, TestHiddenGenerateVaried | 1 | 0.95 | TestHiddenGenerateVaried |
 | `generator-fixed-table` | M2 | exit 1, <1, TestHiddenGenerateVaried | 1 | 0.95 | TestHiddenGenerateVaried |
 | `versions-txt-removed` | M8 | exit 0, =1.00 | 0 | 1.00 | — |
 | `empty-go-sum` | M21 | exit 0, =1.00 | 0 | 1.00 | — |
 | `invalid-state-mutates` | M28 | exit 1, <1, TestHiddenErrors | 1 | 0.95 | TestHiddenErrors |
 | `generate-repeat-differs` (limits) | lim | exit 1, <1, TestHiddenGenerateDeterministic | 1 | 1.00 ≠ | gate: go test ./... |
+| `generator-collapses-31-60` (limits) | lim | exit 1, <1, TestHiddenGenerateVaried | 0 | 1.00 ≠ | — |
 | `slow-generator` (slow) | M3 | exit 0, =1.00 | 0 | 1.00 | — |
 | `store-deadlock` (slow) | M16 | exit 1, <1, TestHiddenConcurrent | 1 | 0.70 | TestHiddenConcurrent, TestHiddenConflicts and 4 more; gate: go test ./... |
 | `init-hang` (slow) | M17 | exit 1, any | 1 | 0.00 | TestHiddenCheck, TestHiddenCountSolutions and 18 more; gate: go test ./... (stopped: time limit) |
@@ -560,6 +565,9 @@ win panel, 375 px width and dark mode.
 - **Determinism** is checked on the nine special seeds (twice each and in a second process); a
   generator that changed its answer on a repeated call for other seeds would pass (self-test
   `generate-repeat-differs`, in the `limits` group).
+- **Variety** is checked on two windows of 30 seeds (1–30 and −30…−1); a generator that collapses
+  another window, such as 31–60, would pass (self-test `generator-collapses-31-60`, in the
+  `limits` group).
 - **Harness faults** (no Go 1.27+, no perl) reach the CSV and the judge as FAIL 0.00, like a
   hard-gate failure; only the `.check.log` tells them apart.
 - **Serialized creation under `-race`.** `TestHiddenConcurrent` creates four games at once, each

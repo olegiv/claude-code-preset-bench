@@ -108,6 +108,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, known limit (M16): a stalled handler's goroutine keeps running inside the hidden test binary (no process isolation) → watchdogs bound the wait, not the CPU it uses.
 - UC4, known limit (M20): `cmd/meowdoku` is checked on a random `-addr`, never on its default `127.0.0.1:8080`, which may be in use on the grading machine.
 - UC4, known limit: code that prints PASS lines and exits 0 before any test runs is still counted → closing it needs a results channel the code under test cannot write.
+- UC4, known limit: variety is checked on two windows of 30 seeds (1–30, −30…−1) → a generator that collapses another window, such as 31–60, passes (self-test `generator-collapses-31-60`).
 - UC4, known limit: determinism is checked on nine seeds (twice, and in a second process) → a generator that drifts on repeated calls for other seeds passes (self-test `generate-repeat-differs`).
 - UC4, known limit: `TestHiddenConcurrent` creates four games at once under a 60 s watchdog each → a handler that holds its lock while generating, with a generator near 2 s (about 17 s under `-race`), fails although it meets the contract.
 - UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
@@ -262,3 +263,11 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   (it now also requires this server's scheme and host), and four serialized creations by a
   lock-holding handler with a near-limit generator can outlast the 60 s watchdog (recorded as a
   known limit).
+- 2026-10-17 — PR 2, round 3 under the owner's override (both fix pushes had been used).
+  PRRT_kwDOVKtXp86tRgSD: the `-addr` probe now runs `curl --noproxy '*'`, so proxy variables on
+  the grading host cannot send the loopback check elsewhere. PRRT_kwDOVKtXp86tRgR2:
+  `TestHiddenGenerateVaried` also checks seeds −30…−1, which catches a generator that clamps or
+  folds negative seeds; the prompt's "any 30 consecutive seeds" can only be sampled, and the added
+  calls keep the engine package inside its 180 s timeout. PRRT_kwDOVKtXp86tRgR8 (`seq` missing on
+  macOS) was rejected: `/usr/bin/seq` ships with macOS.
+

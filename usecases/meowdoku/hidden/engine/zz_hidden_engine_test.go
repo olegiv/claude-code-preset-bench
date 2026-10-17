@@ -265,14 +265,16 @@ func TestHiddenGenerateUnique(t *testing.T) {
 }
 
 func TestHiddenGenerateVaried(t *testing.T) {
-	distinct := map[hiddenLayout]bool{}
-	for _, seed := range hiddenSeedRange(1, 30) {
-		if g, ok := hiddenGenerated(t, seed); ok {
-			distinct[hiddenCanonical(g.p.Regions)] = true
+	for _, from := range []int64{1, -30} { // two sampled windows of 30 consecutive seeds
+		distinct := map[hiddenLayout]bool{}
+		for _, seed := range hiddenSeedRange(from, from+29) {
+			if g, ok := hiddenGenerated(t, seed); ok {
+				distinct[hiddenCanonical(g.p.Regions)] = true
+			}
 		}
-	}
-	if len(distinct) < 27 {
-		t.Errorf("seeds 1-30 gave %d distinct region layouts, want at least 27", len(distinct))
+		if len(distinct) < 27 {
+			t.Errorf("seeds %d to %d gave %d distinct region layouts, want at least 27", from, from+29, len(distinct))
+		}
 	}
 }
 

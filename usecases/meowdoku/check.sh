@@ -252,7 +252,7 @@ main() {
       spid=$!
       for i in $(seq 60); do
         kill -0 "$spid" 2>/dev/null || break
-        if curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:$port/" 2>/dev/null && kill -0 "$spid" 2>/dev/null; then
+        if curl -fsS --noproxy '*' -o /dev/null --max-time 2 "http://127.0.0.1:$port/" 2>/dev/null && kill -0 "$spid" 2>/dev/null; then
           served=1
           break
         fi
