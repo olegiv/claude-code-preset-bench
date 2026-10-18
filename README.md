@@ -51,6 +51,10 @@ usecases/
     README.md                           how to run it, how it is graded, the hidden tests, maintenance
     prompt.md, workspace/, rubric.md    workspace/ holds go.mod and the vendored htmx and Alpine.js
     check.sh                            gates plus hidden acceptance tests; the score is the fraction passed
+  lazygit-conflict-markers/             a real fix in lazygit (upstream PR #5902); grading needs Docker
+    README.md                           the source PR, the workspace, the grader, the hidden tests, the self-test
+    setup.sh, pins.sh                   fetch the pinned lazygit commit into each workspace; pull the grader's image
+    check.sh, hidden/, selftest.sh      grade in a container without network; hidden integration tests; known variants
     hidden/                             the hidden Go tests check.sh copies in; not given to the agent
     reference/                          local only (gitignored, not in the repository): reference solution, selftest.sh
   _template/                            copy to usecases/<name>/ ; folders starting with _ are ignored

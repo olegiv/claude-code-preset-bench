@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reference solutions go in `usecases/*/reference/`, which is gitignored.
   `usecases/meowdoku/README.md` documents running it, the grading, the hidden tests, the
   reference solution and maintenance.
+- A `lazygit-conflict-markers` use case: each arm fixes a real bug in lazygit, making it honor
+  git's `conflict-marker-size` attribute, starting from the parent of upstream PR #5902.
+  `setup.sh` fetches that commit into each workspace through a local cache. `check.sh` grades
+  in a Docker container without network: hard gates on `go.mod`, `go.sum`, `vendor/` and the
+  build, soft gates on gofmt, vet, the unit tests and lazygit's other integration tests, and a
+  score from 5 hidden integration tests (2 from the PR, 3 of ours). `selftest.sh` grades known
+  variants of the workspace, the upstream fix among them.
 
 ### Changed
 

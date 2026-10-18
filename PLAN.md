@@ -50,7 +50,7 @@ points, so the set should cover:
 
 | slot | shape | why it matters | grading |
 |---|---|---|---|
-| UC1 | Exploration-heavy change in a real repo (`repo:` in prompt.md): a feature or fix that needs reading several files/docs before editing | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`: tests/build pass, protected files untouched; `rubric.md`: minimality, correctness of reasoning |
+| UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 5 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
 | UC2 | PR review with pr-review-toolkit on a fixed diff | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `rubric.md` only: findings vs a known issue list (recall), false positives, structure; optional `check.sh` for required sections |
 | UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
@@ -58,6 +58,10 @@ points, so the set should cover:
 UC4 is written (`usecases/meowdoku/`). Its caps (200 turns, $40, 7200 s) come from the calibration
 pass of 2026-10-17/18 (see the log). Grading it needs Go 1.27 or later, and perl, on the machine
 running `bench.py`.
+
+UC1 is written (`usecases/lazygit-conflict-markers/`). Its caps (150 turns, $30, 3600 s) are
+provisional until a calibration pass. Running it needs Docker and, the first time, network on the
+machine running `bench.py`, and Go 1.25 or later with git for the agents.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -119,6 +123,10 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, known limit: determinism is checked on nine seeds (twice, and in a second process) → a generator that drifts on repeated calls for other seeds passes (self-test `generate-repeat-differs`).
 - UC4, known limit: `TestHiddenConcurrent` creates four games at once under a 60 s watchdog each → a handler that holds its lock while generating, with a generator near 2 s (about 17 s under `-race`), fails although it meets the contract.
 - UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
+- UC1, accepted limit: the fix is public (lazygit PR #5902) and the agent has the web → the prompt asks it not to look the fix up; nothing detects it. The same holds for `hidden/`, as in UC4.
+- UC1, known limit: agent code runs in the grading container, so it could print `go test -json` events for the hidden test names or write the grader's result files and fake a pass → as in UC4, closing it needs a results channel the code under test cannot write; links among the results are dropped, so it cannot make the grader print a host file.
+- UC1: agents work on macOS, the grader runs Linux in Docker (as upstream's CI does) → a fix that works only on one of them would be graded on Linux; upstream's conflict tests pass on both.
+- UC1: lazygit's integration tests run once each (`MaxAttempts: 1`) → a failed regression test is rerun once, and a run in which a test hangs (stopped by `go test -timeout`) is repeated once; acceptance failures are never rerun.
 
 ## Findings so far
 
@@ -322,4 +330,34 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   DevTools package inside the first timed run when npm's cache lacked it; `run` now starts each
   server once with `--help` before scheduling. With a throwaway npm cache that took 0.9 s and left
   the package cached; with npm forced offline it stopped the run before any model call.
+- 2026-10-18 — UC1 written: `lazygit-conflict-markers`; no model was called. A read-only search of
+  recent merged PRs in permissively licensed Go projects gave four candidates (lazygit #5902, #6099
+  and #5924, kin-openapi #1290); the owner chose lazygit #5902, which makes lazygit honor the
+  `conflict-marker-size` attribute (8 files in 6 packages, merged 2026-08-08). In Docker
+  (`golang:1.27.2`, no network), all 513 integration tests and the unit tests pass at the merge
+  commit (18 s and 12 s); at the parent with the PR's two integration tests added, exactly those two
+  fail, for the reasons in the issue (the merge-conflict editor does not open; the file is staged),
+  in 3 of 3 runs. Three acceptance tests of ours (seven-character marker lines are content, a length
+  of 12 set by a pattern, all hunks resolved and then the continue prompt) and one regression test
+  (other files keep the default) behaved the same way in 5 of 5 runs. Upstream's conflict tests also
+  pass on macOS (16 of 16, git 2.56), where agents work. The grader runs in Docker, as upstream's CI
+  runs these tests on Linux and it keeps agent code off the host while grading; it replaces the
+  agent's integration-test tree with upstream's and the hidden tests, and treats `go.mod`, `go.sum`
+  and `vendor/` as a hard gate. `setup.sh` removes upstream's `AGENTS.md` and `CLAUDE.md`, which
+  prescribe commits, `just` and a gopls MCP server, and commits that. The first full self-test had
+  one grading container stall until its 600 s limit with no results; reruns did not repeat it. A run
+  in which a test hangs now ends at `go test -timeout`, inside the container's limit, keeps the
+  results so far and is repeated once. Two local Codex reviews (126 s and 117 s) then found five
+  defects, each shown failing before its fix: a unit test in the workspace could swap a result log
+  for a link to a host file, which the grader printed (P1; links among the results are now dropped);
+  a `pkg/integration` linked outside the workspace would have let the grader delete through the link
+  (P1; now a hard gate); the timeout rerun replaced first-run results, so a failed acceptance test
+  could pass on the rerun (it now only fills in tests without a result); the unit tests had no
+  timeout, so a hanging one cost every result (360 s, then a harness fault; now 60 s and a soft
+  gate); and `setup.sh` did not refresh the cache when the pins change. The self-test's docker check
+  now uses a failing stub instead of a `PATH` without `/usr/local/bin`. Self-test: all 18 variants
+  gave the expected verdict under bash 5.3 and `/bin/bash` 3.2 (8 minutes each), among them the
+  reference at 1.00, the untouched workspace at 0.00, a hard-coded length at 0.80, the auto-staging
+  check left on the default length at 0.60, and the length applied to every file at 1.00 with 32
+  regressions. Caps are provisional.
 

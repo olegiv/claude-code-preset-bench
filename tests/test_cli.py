@@ -57,7 +57,7 @@ class CliTest(unittest.TestCase):
     def test_list_shows_the_configs_and_use_cases(self):
         p = self.bench("list")
         self.assertEqual(p.returncode, 0, p.stderr)
-        for name in config_names() + ["example-fix-tests", "meowdoku"]:
+        for name in config_names() + ["example-fix-tests", "meowdoku", "lazygit-conflict-markers"]:
             self.assertIn(name, p.stdout)
 
     def test_dry_run_prints_one_command_per_config_and_writes_no_results(self):
