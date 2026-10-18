@@ -85,6 +85,11 @@ connected, and no Claude in Chrome: only the Chrome DevTools server in `bench-mc
 in a throwaway profile. Your `oclaude-*` launchers are unaffected, since they do not add these
 flags.
 
+Before the first run, `run` starts each server in `bench-mcp.json` once with `--help`, so npm
+fetches its package then and not inside a timed run; it needs node and npx. `run` and `smoke`
+refuse to start on a machine where an administrator has deployed `managed-mcp.json`, because
+Claude Code then exits at startup with `--strict-mcp-config`.
+
 ```bash
 #!/bin/bash
 # high: Opus main model, Fable advisor, Sonnet subagents, effort xhigh

@@ -1,13 +1,16 @@
 """The command line, run on a temporary copy of the repository with a fake claude."""
 
+import argparse
 import csv
+import json
 import os
 import shutil
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
-from helpers import ROOT, bench, config_names, env_without, make_fake_claude, temp_dir
+from helpers import ROOT, bench, config_names, env_without, make_fake_claude, temp_dir, write_file
 
 ROWS = [
     {"run_id": "r1", "timestamp": "2026-10-15T10:00:00", "usecase": "uc", "config": "light", "subtype": "success",
@@ -129,6 +132,41 @@ class CliTest(unittest.TestCase):
             summary = f.read()
         self.assertIn("| uc | normal |", summary)
         self.assertNotIn("| uc | light |", summary)
+
+
+class PreflightTest(unittest.TestCase):
+    """What run and smoke check before any model call, run in-process with the checks' inputs patched."""
+
+    def setUp(self):
+        self.tmp = temp_dir(self)
+        self.args = argparse.Namespace(config=None, usecase=["example-fix-tests"], dry_run=False, no_judge=True, judge_model=None)
+        patcher = mock.patch.object(bench, "log")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def mcp_config(self, script):
+        return write_file(os.path.join(self.tmp, "mcp.json"), json.dumps({"mcpServers": {"srv": {"command": script, "args": ["-x"]}}}))
+
+    def test_run_and_smoke_refuse_a_machine_with_a_managed_mcp_config(self):
+        managed = write_file(os.path.join(self.tmp, "managed-mcp.json"), "{}\n")
+        with mock.patch.object(bench, "MANAGED_MCP_PATHS", [managed]), mock.patch.object(bench, "claude_version", side_effect=AssertionError("too late")):
+            for cmd in (bench.cmd_run, bench.cmd_smoke):
+                with self.assertRaises(SystemExit) as cm:
+                    cmd(self.args)
+                self.assertIn(managed, str(cm.exception))
+
+    def test_run_starts_each_mcp_server_before_scheduling_and_stops_if_one_fails(self):
+        seen = os.path.join(self.tmp, "seen")
+        good = write_file(os.path.join(self.tmp, "good.sh"), '#!/bin/bash\necho "$@" > "%s"\n' % seen, 0o755)
+        bad = write_file(os.path.join(self.tmp, "bad.sh"), "#!/bin/bash\nexit 3\n", 0o755)
+        with mock.patch.object(bench, "MANAGED_MCP_PATHS", []), mock.patch.object(bench, "claude_version", side_effect=RuntimeError("scheduling")):
+            with mock.patch.object(bench, "MCP_CONFIG", self.mcp_config(bad)), self.assertRaises(SystemExit) as cm:
+                bench.cmd_run(self.args)
+            self.assertIn("srv", str(cm.exception))
+            with mock.patch.object(bench, "MCP_CONFIG", self.mcp_config(good)), self.assertRaises(RuntimeError):
+                bench.cmd_run(self.args)
+        with open(seen, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "-x --help\n")
 
 
 if __name__ == "__main__":

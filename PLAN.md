@@ -108,7 +108,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - Effort confound → `normal-max` arm (`normal` at max).
 - Subagent-model confound (Explore and Plan inherit the main model unless FORCE is on) → `light-force` arm.
 - Timed-out runs lose their usage: Claude Code reports cost and turns only on exit → a `harness_timeout` row has neither; timeouts are set at 2x the slowest observed run so that runs finish.
-- The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both.
+- The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both. A machine with an administrator's `managed-mcp.json` cannot run that way (Claude Code exits at startup), so `run` and `smoke` refuse it.
 - Judge diff limit: 60 000 characters cut off the UC4 calibration diffs of `high` and `normal-max` (83 000–87 000) → raised to 120 000 on 2026-10-18; a longer diff is still cut off, and the rubric tells the judge not to penalise what it cannot see.
 - UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
@@ -315,4 +315,11 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   1-turn cap still stopped the run (`error_max_turns`). The judge's diff limit went from 60 000 to 120 000 characters, so every UC4 calibration
   diff (up to 87 000) would now be seen whole; the rubric says so. The configs are unchanged, so
   the `oclaude-*` launchers keep the owner's MCP servers.
+- 2026-10-18 — PR 4 review (Codex, one P1, one P2). Claude Code's managed-MCP documentation says
+  it exits at startup when given `--strict-mcp-config` on a workstation with an administrator's
+  `managed-mcp.json`, so on such a machine every run and judge call would have failed as `no_json`;
+  `run` (except `--dry-run`) and `smoke` now refuse it, naming the file. `npx -y` fetched the
+  DevTools package inside the first timed run when npm's cache lacked it; `run` now starts each
+  server once with `--help` before scheduling. With a throwaway npm cache that took 0.9 s and left
+  the package cached; with npm forced offline it stopped the run before any model call.
 

@@ -49,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runs no longer see the MCP servers and claude.ai connectors you have installed or connected, or
   Claude in Chrome: `bench.py` passes `--no-chrome --strict-mcp-config` and `bench-mcp.json`,
   which holds only Chrome DevTools, headless in a throwaway profile. The judge gets no MCP
-  servers either, so it has no tools at all.
+  servers either, so it has no tools at all. `run` fetches the server's package before the first
+  timed run, and `run` and `smoke` refuse a machine with an administrator's `managed-mcp.json`.
 - The judge sees up to 120 000 characters of the diff (was 60 000).
 
 ### Fixed

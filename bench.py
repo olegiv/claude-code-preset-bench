@@ -52,6 +52,10 @@ DEFAULT_TIMEOUT_S = 1800
 # Claude in Chrome; runs get only the servers in bench-mcp.json: Chrome DevTools, headless, in a throwaway profile.
 MCP_CONFIG = os.path.join(ROOT, "bench-mcp.json")
 ISOLATION_FLAGS = ["--no-chrome", "--strict-mcp-config"]
+# Claude Code exits at startup when given --strict-mcp-config while an administrator's managed-mcp.json is deployed
+# (https://code.claude.com/docs/en/managed-mcp), so no run or judge call could start on such a machine.
+MANAGED_MCP_PATHS = ["/Library/Application Support/ClaudeCode/managed-mcp.json", "/etc/claude-code/managed-mcp.json",
+                     "C:\\Program Files\\ClaudeCode\\managed-mcp.json"]
 
 # Flags the harness appends to every agent run (the config script holds the preset itself).
 HEADLESS_FLAGS = ["--output-format", "json", "--no-session-persistence"] + ISOLATION_FLAGS + ["--mcp-config", MCP_CONFIG]
@@ -233,6 +237,13 @@ def clean_env():
         if v in env:
             log("WARNING: %s=%s is set in your shell and applies to every arm" % (v, env[v]))
     return env
+
+
+def refuse_managed_mcp():
+    found = [p for p in MANAGED_MCP_PATHS if os.path.isfile(p)]
+    if found:
+        sys.exit("%s is deployed on this machine: Claude Code then exits at startup with --strict-mcp-config, which every run "
+                 "and the judge use. Run the benchmark on a machine without it." % found[0])
 
 
 # ----------------------------------------------------------------------------- workspaces
@@ -512,6 +523,12 @@ def cmd_run(args):
         sys.exit("no use cases found under %s" % USECASES_DIR)
     usecases = [load_usecase(n) for n in uc_names]
     env = clean_env()
+    if not args.dry_run:
+        refuse_managed_mcp()
+        # Start each MCP server once with --help, so that npm fetches its package now and not inside a timed run.
+        for name, srv in sorted(json.loads(read(MCP_CONFIG))["mcpServers"].items()):
+            if subprocess.run([srv["command"]] + srv.get("args", []) + ["--help"], env=env, capture_output=True, timeout=600, check=False).returncode:
+                sys.exit("MCP server %s in %s does not start: it needs node and npx, and npm's registry or cache" % (name, MCP_CONFIG))
     version = claude_version()
     log("claude: %s" % version)
     for uc in usecases:
@@ -546,6 +563,7 @@ def cmd_run(args):
 
 
 def cmd_smoke(args):
+    refuse_managed_mcp()
     configs = list_configs()
     env = clean_env()
     log("claude: %s" % claude_version())
