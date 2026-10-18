@@ -108,6 +108,19 @@ class CliTest(unittest.TestCase):
         self.assertIn("| nocheck | max | 1 | 0 | - | - | 5.0 | 5.0-5.0 | $0.100 | - | $0.100 | - | - |", summary)
         self.assertIn("| ALL | max | 4 | 2 | 33% | - | 12.5 | 1.0-3600.0 | $0.200 | - | - | - | - |", summary)
 
+    def test_summarize_counts_a_harness_error_of_a_checked_use_case_without_check_results(self):
+        self.write_runs([
+            {"run_id": "h1", "timestamp": "2026-10-15T10:00:00", "usecase": "example-fix-tests", "config": "max",
+             "subtype": "success", "wall_s": "20", "total_cost_usd": "0.3", "check_pass": "1"},
+            {"run_id": "h2", "timestamp": "2026-10-15T11:00:00", "usecase": "example-fix-tests", "config": "max",
+             "subtype": "harness_error", "wall_s": "1", "notes": "harness error"},
+        ])
+        p = self.bench("summarize", "--since", "2026-10-15T10:30")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(self.results("summary.md"), encoding="utf-8") as f:
+            summary = f.read()
+        self.assertIn("| example-fix-tests | max | 1 | 1 | 0% |", summary)
+
     def test_summarize_since_keeps_only_later_runs(self):
         self.write_runs(ROWS)
         p = self.bench("summarize", "--since", "2026-10-15T10:30")

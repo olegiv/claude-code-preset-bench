@@ -620,7 +620,7 @@ def cmd_summarize(args):
 
     # Every run of a use case that has a check counts. An errored run (capped, timed out, a harness fault)
     # is a failure, also when the check passed what it left in the workspace.
-    checked = set(r["usecase"] for r in rows if r["check_pass"] != "")
+    checked = set(r["usecase"] for r in rows if r["check_pass"] != "" or os.path.isfile(os.path.join(USECASES_DIR, r["usecase"], "check.sh")))
 
     def stats(rs):
         ok = [r for r in rs if r.get("subtype") == "success"]
