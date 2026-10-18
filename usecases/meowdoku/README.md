@@ -70,19 +70,13 @@ python3 bench.py list                                          # meowdoku: turns
 python3 bench.py run --dry-run --runs 1 --no-judge -u meowdoku # one command per preset; no model calls
 ```
 
-### Calibrate the caps first
+### Caps
 
-The caps in `prompt.md` (150 turns, $30, 3600 s) are provisional. Calibrate them with one run on the
-`light` preset:
-
-```bash
-python3 bench.py run --runs 1 -c light -u meowdoku
-```
-
-Then, as `PLAN.md` prescribes, set `max_turns` and `max_budget_usd` to about 1.5× the observed turns
-and cost, and `timeout_seconds` to 2× the observed wall time. They are the frontmatter keys at the
-top of `prompt.md`; record the new values and the run they came from in the log at the end of
-`PLAN.md`.
+The caps in `prompt.md` (200 turns, $40, 7200 s) come from a calibration pass of one run per
+preset on 2026-10-17/18, logged in `PLAN.md`. The most expensive finished run, `high`, used 127
+turns, $13.88 and 2527 s. `normal-max` ran into the earlier 3600 s timeout, and a killed run
+reports no usage, so its caps are estimates: if a `normal-max` run hits one, raise it before the
+remaining runs and record the change in the log at the end of `PLAN.md`.
 
 ### The experiment
 
@@ -142,7 +136,9 @@ that as a failed check with 0.00 too, so look for it in the log before trusting 
 
 The judge sees the rubric, the prompt, the agent's final message (up to 12 000 characters), the
 workspace diff (up to 60 000 characters) and the check verdict as `PASS (score 1.00): 1.00`. The
-reference solution's diff is about 40 000 characters, so a complete build is normally seen whole.
+reference solution's diff is about 40 000 characters. In the calibration pass the Sonnet presets and
+`normal` wrote 36 000–52 000, but `high` and `normal-max` wrote 83 000–87 000 (mostly tests and
+CSS), so the judge sees only the first 60 000 of theirs.
 
 ## How `check.sh` grades
 

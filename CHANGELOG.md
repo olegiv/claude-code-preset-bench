@@ -38,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   all inside a 750 s budget with every step in its own process group and every file it writes
   capped at 128 MB. Results come from
   `go test -json`, so a printed PASS line cannot outweigh a failure. `rubric.md` guides the judge.
-  Grading needs Go 1.27 or later and perl, and a C toolchain only for `-race`. Its caps are
-  provisional. Alpine.js's MIT notice ships next to the vendored file.
+  Grading needs Go 1.27 or later and perl, and a C toolchain only for `-race`. Its caps (200
+  turns, $40, 7200 s) come from one calibration run per preset. Alpine.js's MIT notice ships next to the vendored file.
   Reference solutions go in `usecases/*/reference/`, which is gitignored.
   `usecases/meowdoku/README.md` documents running it, the grading, the hidden tests, the
   reference solution and maintenance.

@@ -1,8 +1,8 @@
 ---
-# Provisional caps: calibrate with `python3 bench.py run --runs 1 -c light -u meowdoku`
-max_turns: 150
-max_budget_usd: 30
-timeout_seconds: 3600
+# Caps from the calibration pass of 2026-10-17/18 (PLAN.md log); normal-max's are estimates
+max_turns: 200
+max_budget_usd: 40
+timeout_seconds: 7200
 ---
 Build **Meowdoku**, a single-player logic puzzle with cats, as a Go web app in this directory.
 
@@ -17,7 +17,7 @@ Build **Meowdoku**, a single-player logic puzzle with cats, as a Go web app in t
 
 - Go 1.27, standard library only. Do not edit `go.mod` (module `meowdoku`).
 - Server-rendered HTML with `html/template`. Templates and static files are embedded with `embed`.
-- htmx 4.0.0 and Alpine.js 3.17.4 are vendored in `web/static/` as `htmx.min.js` and `alpine.min.js`. Serve them from there, do not modify or replace these two files, and load nothing from a CDN. htmx 4 is not htmx 2: check https://four.htmx.org/ (start with the migration guide) instead of relying on memory.
+- htmx 4.0.0 and Alpine.js 3.17.4 are vendored in `web/static/` as `htmx.min.js` and `alpine.min.js`. Serve them from there, do not modify or replace these two files, and load nothing from a CDN. htmx 4 is not htmx 2: check https://four.htmx.org/ (start with https://four.htmx.org/docs/whats-new-in-htmx-4) instead of relying on memory.
 - htmx does all communication with the server. Alpine holds client-only UI state, such as the how-to-play panel and the win message. No game logic in JavaScript, and no hand-written script files.
 
 ## Contract

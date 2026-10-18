@@ -54,8 +54,8 @@ points, so the set should cover:
 | UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
 
-UC4 is written (`usecases/meowdoku/`). Its caps (150 turns, $30, 3600 s) are provisional until a
-`--runs 1 -c light` calibration pass. Grading it needs Go 1.27 or later, and perl, on the machine
+UC4 is written (`usecases/meowdoku/`). Its caps (200 turns, $40, 7200 s) come from the calibration
+pass of 2026-10-17/18 (see the log). Grading it needs Go 1.27 or later, and perl, on the machine
 running `bench.py`.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
@@ -91,6 +91,8 @@ run on the Sonnet arms and $3–15 on the Opus arms at effort max, i.e. at most 
 $110–300 of estimated usage, plus judge calls (~$0.1–0.5 each). Only `normal-max` still runs at
 max: Claude Code's own index puts xhigh at about half of max on Opus and medium at about a fifth
 (Opus) to a tenth (Sonnet), so expect less. Calibrate with step 3 before step 4.
+UC4's calibration (2026-10-18) puts its 15 runs alone at roughly $120–150 and 7–8 hours, most of
+it `normal-max` and `high`.
 Costs are Claude Code's client-side estimates; on the Enterprise seat they map to plan usage.
 
 ## Threats to validity (and what the harness does about them)
@@ -104,6 +106,10 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - Runaway runs → `max_turns`, `max_budget_usd`, harness timeout; capped runs count as failures.
 - Effort confound → `normal-max` arm (`normal` at max).
 - Subagent-model confound (Explore and Plan inherit the main model unless FORCE is on) → `light-force` arm.
+- Timed-out runs lose their usage: Claude Code reports cost and turns only on exit → a `harness_timeout` row has neither; timeouts are set at 2x the slowest observed run so that runs finish.
+- The owner's MCP servers reach every run → agents can drive a browser (every UC4 calibration run that wrote a final message says it tested in Chrome); the same for all arms, and not recorded per run.
+- UC4: the judge sees 60 000 diff characters → the `high` and `normal-max` diffs (83 000–87 000 in calibration) are cut off; the rubric tells the judge not to penalise what it cannot see.
+- UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
 - UC4, known limit (M16): a stalled handler's goroutine keeps running inside the hidden test binary (no process isolation) → watchdogs bound the wait, not the CPU it uses.
 - UC4, known limit (M20): `cmd/meowdoku` is checked on a random `-addr`, never on its default `127.0.0.1:8080`, which may be in use on the grading machine.
@@ -270,4 +276,22 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   folds negative seeds; the prompt's "any 30 consecutive seeds" can only be sampled, and the added
   calls keep the engine package inside its 180 s timeout. PRRT_kwDOVKtXp86tRgR8 (`seq` missing on
   macOS) was rejected: `/usr/bin/seq` ships with macOS.
+- 2026-10-18 — UC4 calibration (steps 2–3): one run per arm, no judge, Claude Code 2.1.302. Every
+  arm built a game that passed all gates and 20/20 hidden tests: `light` 557 s, $0.87, 32 turns;
+  `light-force` 661 s, $0.82, 27 turns; `normal` 704 s, $3.13, 69 turns; `high` 2527 s, $13.88
+  (Fable $4.41), 127 turns. `normal-max` hit the 3600 s timeout; the code it left passed at 1.00,
+  but a killed run reports no usage, so its cost and turns are unknown (under $30, since the budget
+  cap never stopped it). The check does not separate the arms here, and on cost `light` is 4–16x
+  cheaper. Sonnet never called its Opus advisor (0 of 4 advisor-arm runs so far, example-fix-tests
+  included); a direct check (the `light` config told to call the advisor, $0.32) showed that the
+  tool works, so the model chooses not to. Opus at xhigh did call Fable. No run spawned a
+  subagent, so `light` and `light-force` differ only by noise. Every run that wrote a final
+  message says it tested the game in Chrome, through the owner's MCP servers. Diffs were
+  36 000–52 000 characters, but 83 000 (`high`) and 87 000 (`normal-max`), past the judge's
+  60 000. Caps set to 200 turns (`high` used 127; 1.5x is 190), $40 (`high` $13.88; `normal-max`
+  under $30 after an hour, unfinished) and 7200 s (`high` 2527 s; `normal-max` over 3600 s); the
+  `normal-max` values are estimates, to be raised if its first real run hits one. The prompt's
+  "start with the migration guide" led to a 404 or to the htmx 2 guide
+  (`four.htmx.org/migration-guide` redirects to `v2.htmx.org`); it now names
+  `https://four.htmx.org/docs/whats-new-in-htmx-4`. The `light` run had the old line.
 
