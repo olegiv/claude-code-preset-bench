@@ -618,19 +618,23 @@ def cmd_summarize(args):
             g.setdefault(keyf(r), []).append(r)
         return g
 
+    # Every run of a use case that has a check counts. An errored run (capped, timed out, a harness fault)
+    # is a failure, also when the check passed what it left in the workspace.
+    checked = set(r["usecase"] for r in rows if r["check_pass"] != "")
+
     def stats(rs):
         ok = [r for r in rs if r.get("subtype") == "success"]
+        graded = [r for r in rs if r["usecase"] in checked]
         return {
             "n": len(rs),
             "errors": len(rs) - len(ok),
-            "pass_rate": (sum(fnum(r["check_pass"], 0) for r in rs if r["check_pass"] != "") / max(1, len([r for r in rs if r["check_pass"] != ""])))
-            if any(r["check_pass"] != "" for r in rs) else None,
+            "pass_rate": sum(fnum(r["check_pass"], 0) for r in graded if r.get("subtype") == "success") / len(graded) if graded else None,
             "judge": median([fnum(r["judge_score"]) for r in rs]),
             "wall": median([fnum(r["wall_s"]) for r in rs]),
             "wall_min": min([fnum(r["wall_s"], 1e9) for r in rs] or [None]),
             "wall_max": max([fnum(r["wall_s"], -1) for r in rs] or [None]),
             "cost": median([fnum(r["total_cost_usd"]) for r in rs]),
-            "cost_total": sum(fnum(r["total_cost_usd"], 0) for r in rs),
+            "cost_total": None if any(fnum(r["total_cost_usd"]) is None for r in rs) else sum(fnum(r["total_cost_usd"]) for r in rs),
             "advisor": median([fnum(r.get("advisor_cost_usd")) for r in rs]),
             "turns": median([fnum(r["num_turns"]) for r in rs]),
             "cache": median([fnum(r["cache_read_tokens"]) for r in rs]),

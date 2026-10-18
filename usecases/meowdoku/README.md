@@ -88,9 +88,9 @@ python3 bench.py summarize                   # tables on stdout and in results/s
 Useful options: `-c high light` (only some presets), `--no-judge`, `--judge-model fable`,
 `--keep-workspaces` (keep each run's workspace on disk to inspect or re-grade it).
 
-**Cost.** Each run can spend up to its `max_budget_usd`: with the provisional caps, one repeat over
-the five presets can reach about $150 of estimated usage, plus one judge call per run. Calibrate
-before scaling up.
+**Cost.** Each run can spend up to its `max_budget_usd`: with the $40 cap, one repeat over the five
+presets can reach $200 of estimated usage, plus one judge call per run. The calibration pass
+suggests about $40–50 per repeat (`PLAN.md`), most of it `normal-max` and `high`.
 
 ## Reading the results
 

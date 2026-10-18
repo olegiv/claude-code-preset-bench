@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `summarize` counts every errored run (capped, timed out, a harness fault) as a failure, also
+  when the check passed what it left in the workspace, and shows a cost sum as unknown (`-`)
+  when a run in the group reported no cost, instead of counting it as $0.
 - `install-launchers.sh` no longer overwrites a launcher whose `.bak` already exists, or reports a
   backup it did not make. It now checks every launcher first and, while such a `.bak` is in the
   way, refuses and changes nothing.

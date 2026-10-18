@@ -1,6 +1,6 @@
 # Benchmark summary
 
-Generated 2026-10-18 06:54 from 10 runs in `results/runs.csv`.
+Generated 2026-10-18 11:30 from 10 runs in `results/runs.csv`.
 
 Medians unless stated. `pass` = deterministic check pass rate (errored runs count as failures), `judge` = median LLM-judge score (0-10), `cost` = Claude Code's client-side estimate (`total_cost_usd`, all models incl. subagents and advisor, excludes the judge), `advisor` = the part of that cost billed to the advisor model, `cache read` = median cache_read_input_tokens.
 
@@ -17,7 +17,7 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | meowdoku | light | 1 | 0 | 100% | - | 557.1 | 557.1-557.1 | $0.871 | $0.000 | $0.871 | 32.0 | 1963785 |
 | meowdoku | light-force | 1 | 0 | 100% | - | 661.3 | 661.3-661.3 | $0.822 | $0.000 | $0.822 | 27.0 | 1623792 |
 | meowdoku | normal | 1 | 0 | 100% | - | 703.5 | 703.5-703.5 | $3.128 | - | $3.128 | 69.0 | 5123715 |
-| meowdoku | normal-max | 1 | 1 | 100% | - | 3602.5 | 3602.5-3602.5 | - | - | $0.000 | - | - |
+| meowdoku | normal-max | 1 | 1 | 0% | - | 3602.5 | 3602.5-3602.5 | - | - | - | - | - |
 
 ## Per config, all use cases pooled
 
@@ -27,7 +27,7 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | ALL | light | 2 | 0 | 100% | 10.0 | 284.3 | 11.5-557.1 | $0.512 | $0.000 | $1.024 | 19.0 | 1052494 |
 | ALL | light-force | 2 | 0 | 100% | 10.0 | 336.6 | 12.0-661.3 | $0.488 | $0.000 | $0.975 | 16.5 | 882200 |
 | ALL | normal | 2 | 0 | 100% | 9.0 | 360.2 | 17.0-703.5 | $1.715 | - | $3.431 | 36.5 | 2629872 |
-| ALL | normal-max | 2 | 1 | 100% | 8.0 | 1818.8 | 35.0-3602.5 | $0.392 | - | $0.392 | 9.0 | 225424 |
+| ALL | normal-max | 2 | 1 | 50% | 8.0 | 1818.8 | 35.0-3602.5 | $0.392 | - | - | 9.0 | 225424 |
 
 ## Models billed per config
 

@@ -89,6 +89,25 @@ class CliTest(unittest.TestCase):
         self.assertIn("- **light**: claude-sonnet-5-5", summary)
         self.assertIn("- `r2`: capped", summary)
 
+    def test_summarize_counts_errored_runs_as_failures_and_missing_costs_as_unknown(self):
+        self.write_runs([
+            {"run_id": "t1", "timestamp": "2026-10-15T10:00:00", "usecase": "uc", "config": "max", "subtype": "harness_timeout",
+             "wall_s": "3600", "check_pass": "1", "notes": "timed out"},
+            {"run_id": "t2", "timestamp": "2026-10-15T10:10:00", "usecase": "uc", "config": "max", "subtype": "success",
+             "wall_s": "20", "total_cost_usd": "0.3", "check_pass": "1"},
+            {"run_id": "t3", "timestamp": "2026-10-15T10:20:00", "usecase": "uc", "config": "max", "subtype": "harness_error",
+             "wall_s": "1", "notes": "harness error"},
+            {"run_id": "t4", "timestamp": "2026-10-15T10:30:00", "usecase": "nocheck", "config": "max", "subtype": "success",
+             "wall_s": "5", "total_cost_usd": "0.1"},
+        ])
+        p = self.bench("summarize")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(self.results("summary.md"), encoding="utf-8") as f:
+            summary = f.read()
+        self.assertIn("| uc | max | 3 | 2 | 33% | - | 20.0 | 1.0-3600.0 | $0.300 | - | - | - | - |", summary)
+        self.assertIn("| nocheck | max | 1 | 0 | - | - | 5.0 | 5.0-5.0 | $0.100 | - | $0.100 | - | - |", summary)
+        self.assertIn("| ALL | max | 4 | 2 | 33% | - | 12.5 | 1.0-3600.0 | $0.200 | - | - | - | - |", summary)
+
     def test_summarize_since_keeps_only_later_runs(self):
         self.write_runs(ROWS)
         p = self.bench("summarize", "--since", "2026-10-15T10:30")

@@ -284,8 +284,9 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   cap never stopped it). The check does not separate the arms here, and on cost `light` is 4–16x
   cheaper. Sonnet never called its Opus advisor (0 of 4 advisor-arm runs so far, example-fix-tests
   included); a direct check (the `light` config told to call the advisor, $0.32) showed that the
-  tool works, so the model chooses not to. Opus at xhigh did call Fable. No run spawned a
-  subagent, so `light` and `light-force` differ only by noise. Every run that wrote a final
+  tool works, so the model chooses not to. Opus at xhigh did call Fable. No completed run spawned
+  a subagent (`normal-max`'s counts were lost with its usage), so FORCE had nothing to act on in
+  `light-force`. Every run that wrote a final
   message says it tested the game in Chrome, through the owner's MCP servers. Diffs were
   36 000–52 000 characters, but 83 000 (`high`) and 87 000 (`normal-max`), past the judge's
   60 000. Caps set to 200 turns (`high` used 127; 1.5x is 190), $40 (`high` $13.88; `normal-max`
@@ -293,5 +294,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   `normal-max` values are estimates, to be raised if its first real run hits one. The prompt's
   "start with the migration guide" led to a 404 or to the htmx 2 guide
   (`four.htmx.org/migration-guide` redirects to `v2.htmx.org`); it now names
-  `https://four.htmx.org/docs/whats-new-in-htmx-4`. The `light` run had the old line.
+  `https://four.htmx.org/docs/whats-new-in-htmx-4`. The `light` run had the old line (its agent hit
+  the 404), so it is not a controlled comparison with the other four; with `light-force`, which had
+  the same prompt as the Opus arms ($0.82), the Sonnet arms are still 4–17x cheaper.
 
