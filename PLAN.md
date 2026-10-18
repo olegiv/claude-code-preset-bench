@@ -50,7 +50,7 @@ points, so the set should cover:
 
 | slot | shape | why it matters | grading |
 |---|---|---|---|
-| UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 7 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
+| UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 8 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
 | UC2 | PR review with pr-review-toolkit on a fixed diff | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `rubric.md` only: findings vs a known issue list (recall), false positives, structure; optional `check.sh` for required sections |
 | UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
@@ -124,6 +124,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, known limit: `TestHiddenConcurrent` creates four games at once under a 60 s watchdog each → a handler that holds its lock while generating, with a generator near 2 s (about 17 s under `-race`), fails although it meets the contract.
 - UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
 - UC1, accepted limit: the fix is public (lazygit PR #5902) and the agent has the web → the prompt asks it not to look the fix up; nothing detects it. The same holds for `hidden/`, as in UC4.
+- UC1, known limit: the 8 acceptance tests sample the contract → a wrong fix they do not anticipate can still score 1.00; each case they cover came from a concrete wrong fix (most are self-test variants), and the rest is left to the judge.
 - UC1, known limit: agent code runs in the grading container, so it could print `go test -json` events for the hidden test names or write the grader's result files and fake a pass → as in UC4, closing it needs a results channel the code under test cannot write; links among the results are dropped, so it cannot make the grader print a host file.
 - UC1: agents work on macOS, the grader runs Linux in Docker (as upstream's CI does) → a fix that works only on one of them would be graded on Linux; upstream's conflict tests pass on both.
 - UC1: lazygit's integration tests run once each (`MaxAttempts: 1`) → a failed regression test is rerun once, and a run in which a test hangs (stopped by `go test -timeout`) is repeated once; acceptance failures are never rerun.
@@ -371,4 +372,16 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   file scores 0.71 (the five earlier tests all pass on it), and the other partial variants drop to
   0.43–0.86.
   Self-test: all 19 variants gave the expected verdict under bash 5.3 and `/bin/bash` 3.2.
+- 2026-10-18 — PR 5, second review (Codex, three P1), again wrong fixes that the hidden tests let
+  through: `git check-attr` output parsed on whitespace (a path with a space loses its length), lengths
+  looked up only during a merge (every conflict came from `git merge`), and markers matched as "at
+  least N characters" (no longer marker-like block). `mixed_sizes` now names its length-12 file
+  `my notes.md`, `short_markers_are_content` also carries a 33-character block in a length-32 file,
+  and a new acceptance test, `rebase`, resolves a conflict of a rebase started in lazygit (the base
+  stages the still-conflicted file). All 8 acceptance tests fail at the base and pass at the
+  reference, 5 of 5 runs each way. Self-test variants for the three wrong fixes each fail exactly
+  their test and score 0.88 (they scored 1.00 before). This was the PR's last fix push; the hidden
+  tests are recorded as a sample of the contract (threats above), so further reports of that kind
+  will be triaged. Self-test: all 22 variants gave the expected verdict under bash 5.3 and
+  `/bin/bash` 3.2 (10 minutes each).
 

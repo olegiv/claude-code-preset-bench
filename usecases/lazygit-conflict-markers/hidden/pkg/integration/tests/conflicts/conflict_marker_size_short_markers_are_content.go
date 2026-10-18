@@ -8,12 +8,17 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/integration/tests/shared"
 )
 
-// A file that documents conflict markers contains a default-length marker block as ordinary text.
-// With a longer conflict-marker-size, only the long markers delimit the real conflict.
-const exampleMarkerBlock = "<<<<<<< ours\nour side\n=======\ntheir side\n>>>>>>> theirs\n"
+// A file that documents conflict markers contains marker-like blocks as ordinary text: one of the default length
+// and one a character longer than the file's conflict-marker-size. Only markers of exactly that size delimit the
+// real conflict.
+var exampleMarkerBlocks = "How to read a conflict:\n" +
+	"<<<<<<< ours\nour side\n=======\ntheir side\n>>>>>>> theirs\n" +
+	strings.Repeat("<", shared.CustomConflictMarkerSize+1) + " ours\nour side\n" +
+	strings.Repeat("=", shared.CustomConflictMarkerSize+1) + "\ntheir side\n" +
+	strings.Repeat(">", shared.CustomConflictMarkerSize+1) + " theirs\n"
 
 var ConflictMarkerSizeShortMarkersAreContent = NewIntegrationTest(NewIntegrationTestArgs{
-	Description:  "Treats default-length marker lines as content in a file whose conflict-marker-size gitattribute is longer",
+	Description:  "Treats marker lines of other lengths as content in a file whose conflict-marker-size gitattribute is longer",
 	ExtraCmdArgs: []string{},
 	Skip:         false,
 	SetupConfig:  func(config *config.AppConfig) {},
@@ -21,12 +26,12 @@ var ConflictMarkerSizeShortMarkersAreContent = NewIntegrationTest(NewIntegration
 		shared.SetCustomConflictMarkerSize(shell)
 		shell.
 			NewBranch("branch1").
-			CreateFileAndAdd("file", "How to read a conflict:\n"+exampleMarkerBlock+"value: original\n").
+			CreateFileAndAdd("file", exampleMarkerBlocks+"value: original\n").
 			Commit("original").
-			UpdateFileAndAdd("file", "How to read a conflict:\n"+exampleMarkerBlock+"value: first\n").
+			UpdateFileAndAdd("file", exampleMarkerBlocks+"value: first\n").
 			Commit("first change").
 			NewBranchFrom("branch2", "HEAD^").
-			UpdateFileAndAdd("file", "How to read a conflict:\n"+exampleMarkerBlock+"value: second\n").
+			UpdateFileAndAdd("file", exampleMarkerBlocks+"value: second\n").
 			Commit("second change").
 			Checkout("branch1").
 			RunCommandExpectError([]string{"git", "merge", "--no-edit", "branch2"})
@@ -52,6 +57,6 @@ var ConflictMarkerSizeShortMarkersAreContent = NewIntegrationTest(NewIntegration
 
 		t.Common().ContinueOnConflictsResolved("merge")
 
-		t.FileSystem().FileContent("file", Equals("How to read a conflict:\n"+exampleMarkerBlock+"value: first\n"))
+		t.FileSystem().FileContent("file", Equals(exampleMarkerBlocks+"value: first\n"))
 	},
 })

@@ -7,7 +7,8 @@ import (
 	. "github.com/jesseduffield/lazygit/pkg/integration/components"
 )
 
-// One merge leaves two conflicted files with different marker lengths: each must keep its own.
+// One merge leaves two conflicted files with different marker lengths, one of them with a space in its name:
+// each must keep its own.
 var ConflictMarkerSizeMixedSizes = NewIntegrationTest(NewIntegrationTestArgs{
 	Description:  "Resolves a merge whose conflicted files have different conflict marker lengths",
 	ExtraCmdArgs: []string{},
@@ -21,14 +22,14 @@ var ConflictMarkerSizeMixedSizes = NewIntegrationTest(NewIntegrationTestArgs{
 			Commit("set a conflict marker size for markdown files").
 			NewBranch("branch1").
 			CreateFileAndAdd("file", "value: original\n").
-			CreateFileAndAdd("notes.md", "status: original\n").
+			CreateFileAndAdd("my notes.md", "status: original\n").
 			Commit("original").
 			UpdateFileAndAdd("file", "value: first\n").
-			UpdateFileAndAdd("notes.md", "status: first\n").
+			UpdateFileAndAdd("my notes.md", "status: first\n").
 			Commit("first change").
 			NewBranchFrom("branch2", "HEAD^").
 			UpdateFileAndAdd("file", "value: second\n").
-			UpdateFileAndAdd("notes.md", "status: second\n").
+			UpdateFileAndAdd("my notes.md", "status: second\n").
 			Commit("second change").
 			Checkout("branch1").
 			RunCommandExpectError([]string{"git", "merge", "--no-edit", "branch2"})
@@ -40,7 +41,7 @@ var ConflictMarkerSizeMixedSizes = NewIntegrationTest(NewIntegrationTestArgs{
 			IsFocused().
 			Lines(
 				Contains("UU file").IsSelected(),
-				Contains("UU notes.md"),
+				Contains("UU my notes.md"),
 			).
 			PressEnter()
 
@@ -56,7 +57,7 @@ var ConflictMarkerSizeMixedSizes = NewIntegrationTest(NewIntegrationTestArgs{
 		t.Views().Files().
 			IsFocused().
 			Lines(
-				Contains("UU notes.md").IsSelected(),
+				Contains("UU my notes.md").IsSelected(),
 			).
 			PressEnter()
 

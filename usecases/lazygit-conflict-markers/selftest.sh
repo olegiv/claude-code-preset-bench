@@ -9,17 +9,20 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 CHECK_BASH=${CHECK_BASH:-bash}
 
 # name|expected exit|expected score|text the output must contain (or, after "!", must not contain)
-VARIANTS='untouched|1|0.00|acceptance 0/7
+VARIANTS='untouched|1|0.00|acceptance 0/8
 reference|0|1.00|ok: no regression
-reference-committed|0|1.00|acceptance 7/7
-reference-agent-tests-broken|0|1.00|acceptance 7/7
+reference-committed|0|1.00|acceptance 8/8
+reference-agent-tests-broken|0|1.00|acceptance 8/8
 reference-no-test-updates|1|1.00|FAIL: go test -short
 reference-gofmt-miss|1|1.00|FAIL: gofmt
-hardcoded-32|1|0.57|conflict_marker_size_other_attribute_sources (fail)
-auto-stage-default|1|0.43|conflict_marker_size_not_auto_staged (fail)
-unset-means-32|1|0.86|existing behavior broken
-one-size-for-all|1|0.71|conflict_marker_size_mixed_sizes (fail)
-spins-on-pattern|1|0.71|conflict_marker_size_from_pattern (fail)
+hardcoded-32|1|0.62|conflict_marker_size_other_attribute_sources (fail)
+auto-stage-default|1|0.38|conflict_marker_size_not_auto_staged (fail)
+unset-means-32|1|0.88|existing behavior broken
+one-size-for-all|1|0.75|conflict_marker_size_mixed_sizes (fail)
+fields-parser|1|0.88|conflict_marker_size_mixed_sizes (fail)
+merge-only|1|0.88|conflict_marker_size_rebase (fail)
+prefix-match|1|0.88|conflict_marker_size_short_markers_are_content (fail)
+spins-on-pattern|1|0.75|conflict_marker_size_from_pattern (fail)
 first-run-times-out|0|1.00|running the suite again
 vendor-changed|1|0.00|vendor/ changed
 go-mod-changed|1|0.00|go.mod changed
@@ -70,6 +73,20 @@ apply() {
       # Every conflicted file gets the marker length of the first one.
       reference
       mutate pkg/commands/git_commands/file_loader.go 's/file\.ConflictMarkerSize = markerSizes\[file\.Path\]/file.ConflictMarkerSize = markerSizes[conflictedFiles[0].Path]/' ;;
+    fields-parser)
+      # git check-attr's output split on whitespace, which breaks paths that contain a space.
+      reference
+      mutate pkg/commands/git_commands/file_loader.go 's/strings\.Split\(output, "\\x00"\)/strings.Fields(strings.ReplaceAll(output, "\\x00", " "))/' ;;
+    merge-only)
+      # Marker lengths looked up only while a merge (MERGE_HEAD) is in progress, so not during a rebase.
+      reference
+      mutate pkg/commands/git_commands/file_loader.go 's/\t"path\/filepath"\n/\t"os"\n\t"path\/filepath"\n/' &&
+        mutate pkg/commands/git_commands/file_loader.go 's/(func \(self \*FileLoader\) setConflictMarkerSizes\(files \[\]\*models\.File\) \{\n)/${1}\tif _, err := os.Stat(filepath.Join(self.repoPaths.WorktreeGitDirPath(), "MERGE_HEAD")); err != nil {\n\t\treturn\n\t}\n/' ;;
+    prefix-match)
+      # A marker is any line that starts with at least the configured number of marker characters.
+      reference
+      mutate pkg/gui/mergeconflicts/find_conflicts.go 's/return hasMarkerPrefix\(line, markerChar, markerSize\) &&\n\t\t\(len\(line\) == markerSize \|\| line\[markerSize\] == \x27 \x27\)/return hasMarkerPrefix(line, markerChar, markerSize)/' &&
+        mutate pkg/gui/mergeconflicts/find_conflicts.go "s/return hasMarkerPrefix\(line, '=', markerSize\) && len\(line\) == markerSize/return hasMarkerPrefix(line, '=', markerSize)/" ;;
     unset-means-32)
       reference
       mutate pkg/commands/git_commands/file_loader.go 's/(markerSizes\[fields\[i\]\] = markerSize\n\t\t\})/$1 else {\n\t\t\tmarkerSizes[fields[i]] = 32\n\t\t}/' ;;
