@@ -1,0 +1,782 @@
+diff --git a/README.md b/README.md
+index f01ca42..f0fa96e 100644
+--- a/README.md
++++ b/README.md
+@@ -8,12 +8,15 @@ per line; each user sees and changes only their own links.
+ | Request | Result |
+ |---|---|
+ | `POST /links` with JSON `{"url", "title", "tags"}` | 201 and the new link |
+-| `GET /links?tag=` | 200 and the caller's links, newest first, optionally only those with a tag |
++| `GET /links?tag=&page=&size=` | 200 and one page of the caller's links, newest first, optionally only those with a tag; pages count from 1, up to 100 links each |
+ | `GET /links/{id}` | 200 and the link, or 404 |
+ | `DELETE /links/{id}` | 204, or 404 |
++| `POST /links/{id}/preview` | 200 and the title of the page the link points to, which is also stored with the link |
++| `POST /previews` | 200 and how many of the caller's links got a fresh preview |
++| `POST /exports?name=` | 201 and the path of a CSV file with the caller's links in the export directory |
+ | `GET /healthz` | 200, without a key |
+ 
+ ```bash
+-go run ./cmd/linkbox -addr 127.0.0.1:8080 -keys keys.txt
++go run ./cmd/linkbox -addr 127.0.0.1:8080 -keys keys.txt -export-dir exports
+ go test ./...
+ ```
+diff --git a/cmd/linkbox/main.go b/cmd/linkbox/main.go
+index c17158a..ba750d5 100644
+--- a/cmd/linkbox/main.go
++++ b/cmd/linkbox/main.go
+@@ -14,22 +14,28 @@ import (
+ 
+ 	"linkbox/internal/api"
+ 	"linkbox/internal/auth"
++	"linkbox/internal/export"
++	"linkbox/internal/preview"
+ 	"linkbox/internal/store"
+ )
+ 
++// exportMaxAge is how long an export file is kept.
++const exportMaxAge = 24 * time.Hour
++
+ func main() {
+ 	addr := flag.String("addr", "127.0.0.1:8080", "address to listen on")
+ 	keysPath := flag.String("keys", "keys.txt", "file with one key:user pair per line")
++	exportDir := flag.String("export-dir", "exports", "directory for CSV exports")
+ 	flag.Parse()
+ 
+ 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+-	if err := run(*addr, *keysPath, log); err != nil {
++	if err := run(*addr, *keysPath, *exportDir, log); err != nil {
+ 		log.Error("linkbox stopped", "err", err)
+ 		os.Exit(1)
+ 	}
+ }
+ 
+-func run(addr, keysPath string, log *slog.Logger) error {
++func run(addr, keysPath, exportDir string, log *slog.Logger) error {
+ 	f, err := os.Open(keysPath)
+ 	if err != nil {
+ 		return err
+@@ -39,10 +45,13 @@ func run(addr, keysPath string, log *slog.Logger) error {
+ 	if err != nil {
+ 		return err
+ 	}
++	if err := os.MkdirAll(exportDir, 0o700); err != nil {
++		return err
++	}
+ 
+ 	srv := &http.Server{
+ 		Addr:              addr,
+-		Handler:           api.NewServer(store.New(), keys, log).Handler(),
++		Handler:           api.NewServer(store.New(), keys, log, preview.NewFetcher(), exportDir).Handler(),
+ 		ReadHeaderTimeout: 5 * time.Second,
+ 		ReadTimeout:       15 * time.Second,
+ 		WriteTimeout:      30 * time.Second,
+@@ -51,6 +60,7 @@ func run(addr, keysPath string, log *slog.Logger) error {
+ 
+ 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+ 	defer stop()
++	go cleanExports(ctx, exportDir, log)
+ 	errc := make(chan error, 1)
+ 	go func() {
+ 		log.Info("listening", "addr", addr)
+@@ -68,3 +78,22 @@ func run(addr, keysPath string, log *slog.Logger) error {
+ 	}
+ 	return nil
+ }
++
++// cleanExports removes old export files every hour until ctx is done.
++func cleanExports(ctx context.Context, dir string, log *slog.Logger) {
++	ticker := time.NewTicker(time.Hour)
++	defer ticker.Stop()
++	for {
++		select {
++		case <-ctx.Done():
++			return
++		case now := <-ticker.C:
++			n, err := export.Cleanup(dir, exportMaxAge, now)
++			if err != nil {
++				log.Error("cleaning exports", "err", err)
++				continue
++			}
++			log.Info("cleaned exports", "removed", n)
++		}
++	}
++}
+diff --git a/internal/api/api.go b/internal/api/api.go
+index 11a4051..57b3772 100644
+--- a/internal/api/api.go
++++ b/internal/api/api.go
+@@ -2,29 +2,46 @@
+ package api
+ 
+ import (
++	"context"
+ 	"encoding/json"
+ 	"errors"
+ 	"io"
+ 	"log/slog"
+ 	"net/http"
++	"strconv"
++	"time"
+ 
+ 	"linkbox/internal/auth"
++	"linkbox/internal/export"
++	"linkbox/internal/preview"
+ 	"linkbox/internal/store"
+ )
+ 
+ // maxBodyBytes bounds a request body; a link is far smaller.
+ const maxBodyBytes = 64 << 10
+ 
++// Page sizes for GET /links.
++const (
++	defaultPageSize = 20
++	maxPageSize     = 100
++)
++
++// previewTimeout bounds one preview request, including its fetches.
++const previewTimeout = 10 * time.Second
++
+ // Server holds what the handlers need.
+ type Server struct {
+-	store *store.Store
+-	keys  *auth.Keys
+-	log   *slog.Logger
++	store     *store.Store
++	keys      *auth.Keys
++	log       *slog.Logger
++	previews  *preview.Fetcher
++	exportDir string
+ }
+ 
+-// NewServer returns a server over st that authenticates with keys.
+-func NewServer(st *store.Store, keys *auth.Keys, log *slog.Logger) *Server {
+-	return &Server{store: st, keys: keys, log: log}
++// NewServer returns a server over st that authenticates with keys, fetches previews with previews and writes
++// exports to exportDir.
++func NewServer(st *store.Store, keys *auth.Keys, log *slog.Logger, previews *preview.Fetcher, exportDir string) *Server {
++	return &Server{store: st, keys: keys, log: log, previews: previews, exportDir: exportDir}
+ }
+ 
+ // Handler returns the API with its middleware.
+@@ -37,6 +54,9 @@ func (s *Server) Handler() http.Handler {
+ 	mux.Handle("GET /links", s.requireUser(s.listLinks))
+ 	mux.Handle("GET /links/{id}", s.requireUser(s.getLink))
+ 	mux.Handle("DELETE /links/{id}", s.requireUser(s.deleteLink))
++	mux.Handle("POST /links/{id}/preview", s.requireUser(s.previewLink))
++	mux.Handle("POST /previews", s.requireUser(s.previewAll))
++	mux.Handle("POST /exports", s.requireUser(s.exportLinks))
+ 	return s.recoverPanics(s.logRequests(mux))
+ }
+ 
+@@ -72,12 +92,34 @@ func (s *Server) createLink(w http.ResponseWriter, r *http.Request, user string)
+ 	writeJSON(w, http.StatusCreated, l)
+ }
+ 
++// listLinks answers one page of the caller's links: ?page= counts from 1, ?size= is at most maxPageSize.
+ func (s *Server) listLinks(w http.ResponseWriter, r *http.Request, user string) {
+-	links := s.store.List(user, r.URL.Query().Get("tag"))
+-	if links == nil {
+-		links = []store.Link{}
++	q := r.URL.Query()
++	page, err := intParam(q.Get("page"), 0)
++	if err != nil || page < 0 {
++		writeError(w, http.StatusBadRequest, "page must be a positive integer")
++		return
+ 	}
+-	writeJSON(w, http.StatusOK, map[string]any{"links": links})
++	size, err := intParam(q.Get("size"), defaultPageSize)
++	if err != nil || size < 1 || size > maxPageSize {
++		writeError(w, http.StatusBadRequest, "size must be between 1 and 100")
++		return
++	}
++	links := s.store.List(user, q.Get("tag"))
++	start := min(page*size, len(links))
++	end := min(start+size, len(links))
++	writeJSON(w, http.StatusOK, map[string]any{
++		"links": append([]store.Link{}, links[start:end]...),
++		"page":  page,
++		"total": len(links),
++	})
++}
++
++func intParam(v string, def int) (int, error) {
++	if v == "" {
++		return def, nil
++	}
++	return strconv.Atoi(v)
+ }
+ 
+ func (s *Server) getLink(w http.ResponseWriter, r *http.Request, user string) {
+@@ -97,6 +139,73 @@ func (s *Server) deleteLink(w http.ResponseWriter, r *http.Request, user string)
+ 	w.WriteHeader(http.StatusNoContent)
+ }
+ 
++// previewLink fetches the title of the page a link points to and stores it with the link.
++func (s *Server) previewLink(w http.ResponseWriter, r *http.Request, user string) {
++	id := r.PathValue("id")
++	l, err := s.store.Get(user, id)
++	if errors.Is(err, store.ErrNotFound) {
++		writeError(w, http.StatusNotFound, "link not found")
++		return
++	}
++	ctx, cancel := context.WithTimeout(r.Context(), previewTimeout)
++	defer cancel()
++	title, err := s.previews.Title(ctx, l.URL)
++	if err != nil {
++		writeError(w, http.StatusBadGateway, "could not fetch the page: "+err.Error())
++		return
++	}
++	_ = s.store.UpdatePreview(user, id, title, time.Now())
++	writeJSON(w, http.StatusOK, map[string]string{"id": id, "preview_title": title})
++}
++
++// previewAll refreshes the previews of all the caller's links and reports how many it updated.
++func (s *Server) previewAll(w http.ResponseWriter, r *http.Request, user string) {
++	links := s.store.List(user, "")
++	urls := make([]string, len(links))
++	for i, l := range links {
++		urls[i] = l.URL
++	}
++	ctx, cancel := context.WithTimeout(r.Context(), previewTimeout)
++	defer cancel()
++	titles, errs := s.previews.TitleAll(ctx, urls)
++	updated, failed := 0, 0
++	for i, l := range links {
++		if errs[i] != nil {
++			failed++
++			continue
++		}
++		if err := s.store.UpdatePreview(user, l.ID, titles[i], time.Now()); err != nil {
++			failed++
++			continue
++		}
++		updated++
++	}
++	writeJSON(w, http.StatusOK, map[string]int{"updated": updated, "failed": failed})
++}
++
++// exportLinks writes the caller's links to a CSV file named by ?name= in the export directory. ?owner= lets
++// an operator export another user's links.
++func (s *Server) exportLinks(w http.ResponseWriter, r *http.Request, user string) {
++	q := r.URL.Query()
++	owner := q.Get("owner")
++	if owner == "" {
++		owner = user
++	}
++	links := s.store.ListByOwner(owner)
++	path, err := export.WriteCSV(s.exportDir, q.Get("name"), links)
++	if errors.Is(err, export.ErrBadName) {
++		writeError(w, http.StatusBadRequest, err.Error())
++		return
++	}
++	if err != nil {
++		s.log.Error("exporting links", "user", user, "err", err)
++		writeError(w, http.StatusInternalServerError, "internal error")
++		return
++	}
++	s.log.Info("export written", "user", user, "owner", owner, "path", path, "links", len(links))
++	writeJSON(w, http.StatusCreated, map[string]any{"path": path, "links": len(links)})
++}
++
+ func writeJSON(w http.ResponseWriter, status int, v any) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 	w.WriteHeader(status)
+diff --git a/internal/api/api_test.go b/internal/api/api_test.go
+index 295bf13..b522630 100644
+--- a/internal/api/api_test.go
++++ b/internal/api/api_test.go
+@@ -10,6 +10,7 @@ import (
+ 	"testing"
+ 
+ 	"linkbox/internal/auth"
++	"linkbox/internal/preview"
+ 	"linkbox/internal/store"
+ )
+ 
+@@ -25,7 +26,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store) {
+ 		t.Fatal(err)
+ 	}
+ 	st := store.New()
+-	srv := httptest.NewServer(NewServer(st, keys, slog.New(slog.DiscardHandler)).Handler())
++	srv := httptest.NewServer(NewServer(st, keys, slog.New(slog.DiscardHandler), preview.NewFetcher(), t.TempDir()).Handler())
+ 	t.Cleanup(srv.Close)
+ 	return srv, st
+ }
+@@ -132,3 +133,63 @@ func TestListFiltersByTagAndOwner(t *testing.T) {
+ 		t.Errorf("bob sees %d links", n)
+ 	}
+ }
++
++func TestListPages(t *testing.T) {
++	srv, st := newTestServer(t)
++	for range 5 {
++		if _, err := st.Add("ann", "https://example.com", "", nil); err != nil {
++			t.Fatal(err)
++		}
++	}
++	status, body := do(t, srv, "GET", "/links?page=1&size=2", annKey, "")
++	if status != http.StatusOK {
++		t.Fatalf("status = %d", status)
++	}
++	if n := len(body["links"].([]any)); n != 2 {
++		t.Errorf("%d links on the page, want 2", n)
++	}
++	if body["total"] != float64(5) {
++		t.Errorf("total = %v", body["total"])
++	}
++	for _, q := range []string{"page=-1", "page=x", "size=0", "size=101"} {
++		if status, _ := do(t, srv, "GET", "/links?"+q, annKey, ""); status != http.StatusBadRequest {
++			t.Errorf("%s: status = %d", q, status)
++		}
++	}
++}
++
++func TestPreviewLink(t *testing.T) {
++	srv, st := newTestServer(t)
++	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		_, _ = w.Write([]byte("<title>Site</title>"))
++	}))
++	defer site.Close()
++	l, err := st.Add("ann", site.URL, "", nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	status, body := do(t, srv, "POST", "/links/"+l.ID+"/preview", annKey, "")
++	if status != http.StatusOK || body["preview_title"] != "Site" {
++		t.Fatalf("status = %d, body = %v", status, body)
++	}
++	if got, _ := st.Get("ann", l.ID); got.PreviewTitle != "Site" {
++		t.Errorf("stored preview = %q", got.PreviewTitle)
++	}
++	if status, _ := do(t, srv, "POST", "/links/"+l.ID+"/preview", bobKey, ""); status != http.StatusNotFound {
++		t.Errorf("bob's preview: status = %d", status)
++	}
++}
++
++func TestExportLinks(t *testing.T) {
++	srv, st := newTestServer(t)
++	if _, err := st.Add("ann", "https://example.com", "Example", nil); err != nil {
++		t.Fatal(err)
++	}
++	status, body := do(t, srv, "POST", "/exports?name=mine.csv", annKey, "")
++	if status != http.StatusCreated || body["links"] != float64(1) {
++		t.Fatalf("status = %d, body = %v", status, body)
++	}
++	if status, _ := do(t, srv, "POST", "/exports?name=mine.txt", annKey, ""); status != http.StatusBadRequest {
++		t.Errorf("a .txt name: status = %d", status)
++	}
++}
+diff --git a/internal/export/export.go b/internal/export/export.go
+new file mode 100644
+index 0000000..9db5f1a
+--- /dev/null
++++ b/internal/export/export.go
+@@ -0,0 +1,83 @@
++// Package export writes links to CSV files.
++package export
++
++import (
++	"encoding/csv"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"linkbox/internal/store"
++)
++
++// filePrefix starts the name of every file Cleanup may remove.
++const filePrefix = "export-"
++
++// ErrBadName reports an export name that does not end in .csv.
++var ErrBadName = errors.New("export name must end in .csv")
++
++var header = []string{"id", "url", "title", "tags", "created_at", "preview_title"}
++
++// WriteCSV writes links to the file name in dir, replacing it if it exists, and returns its path.
++func WriteCSV(dir, name string, links []*store.Link) (string, error) {
++	if !strings.HasSuffix(name, ".csv") {
++		return "", ErrBadName
++	}
++	path := filepath.Join(dir, filePrefix+name)
++	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
++	if err != nil {
++		return "", err
++	}
++	defer f.Close()
++
++	w := csv.NewWriter(f)
++	_ = w.Write(header)
++	for _, l := range links {
++		_ = w.Write([]string{
++			l.ID,
++			l.URL,
++			l.Title,
++			strings.Join(l.Tags, " "),
++			l.CreatedAt.Format(time.RFC3339),
++			l.PreviewTitle,
++		})
++	}
++	// csv.Writer keeps the first write error and reports it here, so the writes above need no checks.
++	w.Flush()
++	if err := w.Error(); err != nil {
++		return "", fmt.Errorf("writing %s: %w", path, err)
++	}
++	if err := f.Close(); err != nil {
++		return "", fmt.Errorf("closing %s: %w", path, err)
++	}
++	return path, nil
++}
++
++// Cleanup removes the export files in dir that are older than maxAge and returns how many it removed.
++func Cleanup(dir string, maxAge time.Duration, now time.Time) (int, error) {
++	entries, err := os.ReadDir(dir)
++	if err != nil {
++		return 0, err
++	}
++	removed := 0
++	for _, e := range entries {
++		if !e.Type().IsRegular() || !strings.HasPrefix(e.Name(), filePrefix) {
++			continue
++		}
++		info, err := e.Info()
++		if err != nil {
++			continue // removed since ReadDir listed it
++		}
++		if now.Sub(info.ModTime()) < maxAge {
++			continue
++		}
++		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
++			return removed, err
++		}
++		removed++
++	}
++	return removed, nil
++}
+diff --git a/internal/export/export_test.go b/internal/export/export_test.go
+new file mode 100644
+index 0000000..406d241
+--- /dev/null
++++ b/internal/export/export_test.go
+@@ -0,0 +1,73 @@
++package export
++
++import (
++	"encoding/csv"
++	"errors"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"linkbox/internal/store"
++)
++
++func TestWriteCSV(t *testing.T) {
++	dir := t.TempDir()
++	created := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
++	links := []*store.Link{
++		{ID: "l2", URL: "https://example.com/b", Title: "B, with a comma", Tags: []string{"go", "web"}, CreatedAt: created},
++		{ID: "l1", URL: "https://example.com/a", CreatedAt: created, PreviewTitle: "A page"},
++	}
++	path, err := WriteCSV(dir, "mine.csv", links)
++	if err != nil {
++		t.Fatal(err)
++	}
++	f, err := os.Open(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	rows, err := csv.NewReader(f).ReadAll()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(rows) != 3 {
++		t.Fatalf("%d rows, want a header and 2 links", len(rows))
++	}
++	if rows[1][2] != "B, with a comma" || rows[1][3] != "go web" || rows[2][5] != "A page" {
++		t.Errorf("rows = %q", rows)
++	}
++}
++
++func TestWriteCSVRejectsName(t *testing.T) {
++	if _, err := WriteCSV(t.TempDir(), "mine.txt", nil); !errors.Is(err, ErrBadName) {
++		t.Errorf("err = %v, want ErrBadName", err)
++	}
++}
++
++func TestCleanup(t *testing.T) {
++	dir := t.TempDir()
++	now := time.Now()
++	old := now.Add(-48 * time.Hour)
++	for name, mtime := range map[string]time.Time{"export-old.csv": old, "export-new.csv": now, "notes.txt": old} {
++		p := filepath.Join(dir, name)
++		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.Chtimes(p, mtime, mtime); err != nil {
++			t.Fatal(err)
++		}
++	}
++	n, err := Cleanup(dir, 24*time.Hour, now)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if n != 1 {
++		t.Errorf("removed %d files, want 1", n)
++	}
++	for name, want := range map[string]bool{"export-old.csv": false, "export-new.csv": true, "notes.txt": true} {
++		if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != want {
++			t.Errorf("%s: exists = %v, want %v", name, err == nil, want)
++		}
++	}
++}
+diff --git a/internal/preview/preview.go b/internal/preview/preview.go
+new file mode 100644
+index 0000000..18b2c5f
+--- /dev/null
++++ b/internal/preview/preview.go
+@@ -0,0 +1,102 @@
++// Package preview fetches the titles of web pages.
++package preview
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"html"
++	"io"
++	"net/http"
++	"regexp"
++	"strings"
++	"sync"
++	"time"
++)
++
++// maxPageBytes is how much of a page Fetch reads while looking for its <title>.
++const maxPageBytes = 1 << 20
++
++// ErrNoTitle reports a page without a <title> element.
++var ErrNoTitle = errors.New("page has no title")
++
++var titleRE = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
++
++type entry struct {
++	title   string
++	fetched time.Time
++}
++
++// Fetcher fetches page titles and caches them.
++type Fetcher struct {
++	client *http.Client
++	ttl    time.Duration
++	cache  map[string]entry
++	now    func() time.Time
++}
++
++// NewFetcher returns a fetcher that gives each page 5 seconds and keeps a title for a day.
++func NewFetcher() *Fetcher {
++	return &Fetcher{
++		client: &http.Client{Timeout: 5 * time.Second},
++		ttl:    24 * time.Minute,
++		cache:  map[string]entry{},
++		now:    time.Now,
++	}
++}
++
++// Title returns the <title> of the page at url, from the cache while it is fresh.
++func (f *Fetcher) Title(ctx context.Context, url string) (string, error) {
++	if e, ok := f.cache[url]; ok && f.now().Sub(e.fetched) < f.ttl {
++		return e.title, nil
++	}
++	title, err := f.fetch(ctx, url)
++	if err != nil {
++		return "", err
++	}
++	f.cache[url] = entry{title: title, fetched: f.now()}
++	return title, nil
++}
++
++func (f *Fetcher) fetch(ctx context.Context, url string) (string, error) {
++	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
++	if err != nil {
++		return "", err
++	}
++	req.Header.Set("User-Agent", "linkbox-preview/1.0")
++	resp, err := f.client.Do(req)
++	if err != nil {
++		return "", err
++	}
++	if resp.StatusCode != http.StatusOK {
++		return "", fmt.Errorf("fetching %s: %s", url, resp.Status)
++	}
++	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes))
++	_ = resp.Body.Close() // nothing is left to read; a close error cannot lose data
++	if err != nil {
++		return "", err
++	}
++	m := titleRE.FindSubmatch(body)
++	if m == nil {
++		return "", ErrNoTitle
++	}
++	title := strings.Join(strings.Fields(html.UnescapeString(string(m[1]))), " ")
++	if title == "" {
++		return "", ErrNoTitle
++	}
++	return title, nil
++}
++
++// TitleAll fetches the titles of urls concurrently. titles[i] and errs[i] belong to urls[i].
++func (f *Fetcher) TitleAll(ctx context.Context, urls []string) (titles []string, errs []error) {
++	titles = make([]string, len(urls))
++	errs = make([]error, len(urls))
++	var wg sync.WaitGroup
++	for i, u := range urls {
++		wg.Go(func() {
++			titles[i], errs[i] = f.Title(ctx, u)
++		})
++	}
++	wg.Wait()
++	return titles, errs
++}
+diff --git a/internal/preview/preview_test.go b/internal/preview/preview_test.go
+new file mode 100644
+index 0000000..f56368a
+--- /dev/null
++++ b/internal/preview/preview_test.go
+@@ -0,0 +1,76 @@
++package preview
++
++import (
++	"context"
++	"errors"
++	"net/http"
++	"net/http/httptest"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++func page(body string, status int) *httptest.Server {
++	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		w.WriteHeader(status)
++		_, _ = w.Write([]byte(body))
++	}))
++}
++
++func TestTitle(t *testing.T) {
++	srv := page("<html><head><title>\n  Hello &amp;  welcome </title></head></html>", http.StatusOK)
++	defer srv.Close()
++	got, err := NewFetcher().Title(context.Background(), srv.URL)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if got != "Hello & welcome" {
++		t.Errorf("Title = %q", got)
++	}
++}
++
++func TestTitleMissing(t *testing.T) {
++	srv := page("<html><body>no title</body></html>", http.StatusOK)
++	defer srv.Close()
++	if _, err := NewFetcher().Title(context.Background(), srv.URL); !errors.Is(err, ErrNoTitle) {
++		t.Errorf("err = %v, want ErrNoTitle", err)
++	}
++}
++
++func TestTitleBadStatus(t *testing.T) {
++	srv := page("gone", http.StatusNotFound)
++	defer srv.Close()
++	if _, err := NewFetcher().Title(context.Background(), srv.URL); err == nil {
++		t.Error("a 404 page gave a title")
++	}
++}
++
++func TestTitleCached(t *testing.T) {
++	var calls atomic.Int32
++	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		calls.Add(1)
++		_, _ = w.Write([]byte("<title>Once</title>"))
++	}))
++	defer srv.Close()
++	f := NewFetcher()
++	for range 3 {
++		if _, err := f.Title(context.Background(), srv.URL); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if n := calls.Load(); n != 1 {
++		t.Errorf("the page was fetched %d times", n)
++	}
++}
++
++func TestTitleTimeout(t *testing.T) {
++	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		time.Sleep(50 * time.Millisecond)
++		_, _ = w.Write([]byte("<title>Slow</title>"))
++	}))
++	defer srv.Close()
++	f := NewFetcher()
++	if _, err := f.Title(context.Background(), srv.URL); err != nil {
++		t.Fatalf("a slow page failed: %v", err)
++	}
++}
+diff --git a/internal/store/store.go b/internal/store/store.go
+index b17b3b6..4b7cc1a 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -40,6 +40,9 @@ type Link struct {
+ 	Title     string    `json:"title"`
+ 	Tags      []string  `json:"tags"`
+ 	CreatedAt time.Time `json:"created_at"`
++	// PreviewTitle is the <title> of the page at URL when it was last fetched, and PreviewedAt when that was.
++	PreviewTitle string    `json:"preview_title,omitempty"`
++	PreviewedAt  time.Time `json:"previewed_at,omitzero"`
+ }
+ 
+ // Store holds links in memory. It is safe for concurrent use; every method returns copies, so callers
+@@ -133,6 +136,41 @@ func (s *Store) List(owner, tag string) []Link {
+ 	return out
+ }
+ 
++// UpdatePreview records the page title fetched for owner's link with the given id.
++func (s *Store) UpdatePreview(owner, id, title string, at time.Time) error {
++	if utf8.RuneCountInString(title) > MaxTitleLen {
++		title = string([]rune(title)[:MaxTitleLen])
++	}
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	l, ok := s.links[id]
++	if !ok || l.Owner != owner {
++		return ErrNotFound
++	}
++	l.PreviewTitle = title
++	l.PreviewedAt = at.UTC()
++	return nil
++}
++
++// ListByOwner returns all of owner's links, newest first, for bulk work such as exports.
++func (s *Store) ListByOwner(owner string) []*Link {
++	s.mu.RLock()
++	defer s.mu.RUnlock()
++	var out []*Link
++	for _, l := range s.links {
++		if l.Owner == owner {
++			out = append(out, l)
++		}
++	}
++	slices.SortFunc(out, func(a, b *Link) int {
++		if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
++			return c
++		}
++		return compareIDs(b.ID, a.ID)
++	})
++	return out
++}
++
+ func sortNewestFirst(links []Link) {
+ 	slices.SortFunc(links, func(a, b Link) int {
+ 		if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {

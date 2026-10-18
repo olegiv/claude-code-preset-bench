@@ -51,7 +51,7 @@ points, so the set should cover:
 | slot | shape | why it matters | grading |
 |---|---|---|---|
 | UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 8 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
-| UC2 | PR review with pr-review-toolkit on a fixed diff | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `rubric.md` only: findings vs a known issue list (recall), false positives, structure; optional `check.sh` for required sections |
+| UC2 | PR review with pr-review-toolkit on a fixed diff (`linkbox-review`: a planted pull request, about 550 lines, in a small Go service written for it) | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `check.sh`: REVIEW.md's findings matched to 10 planted problems and 5 decoys, score = (found − decoys) / 10, PASS from 0.60; hard gates on REVIEW.md and an untouched pull request; soft gate when no pr-review-toolkit agent completed; `rubric.md` holds the answer key for explanations, severity and noise |
 | UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
 
@@ -62,6 +62,9 @@ running `bench.py`.
 UC1 is written (`usecases/lazygit-conflict-markers/`). Its caps (100 turns, $25, 5400 s) come from
 the calibration pass of 2026-10-18 (see the log). Running it needs Docker and, the first time,
 network on the machine running `bench.py`, and Go 1.25 or later with git for the agents.
+
+UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 2700 s) are provisional
+until a calibration pass. Running it needs the pr-review-toolkit plugin, installed and enabled.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -125,6 +128,9 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - UC4, accepted limit: the agent runs unsandboxed, so it can read or change `hidden/` and `check.sh` in the checkout, and read them in the public repository → nothing detects it; a sandbox would stop the changes, not the reading, since the prompt needs the web.
 - UC1, accepted limit: the fix is public (lazygit PR #5902) and the agent has the web → the prompt asks it not to look the fix up; nothing detects it. The same holds for `hidden/`, as in UC4.
 - UC1, known limit: the 8 acceptance tests sample the contract → a wrong fix they do not anticipate can still score 1.00; each case they cover came from a concrete wrong fix (most are self-test variants), and the rest is left to the judge.
+- UC2: `code-reviewer` pins Opus, which is also `light`'s advisor model → `bench.py` counts that subagent's Opus usage as advisor cost and no longer flags an unused advisor; read `light`'s `per_model_cost_usd` and `models_used` with that in mind.
+- UC2: pr-review-toolkit updates itself (version `ea10b213686c` at writing) → its agents, prompts and pinned models can change between runs; record the version with the results.
+- UC2, accepted limit: the answer key is in the public repository, as UC1's and UC4's hidden tests are.
 - UC1, known limit: agent code runs in the grading container, so it could print `go test -json` events for the hidden test names or write the grader's result files and fake a pass → as in UC4, closing it needs a results channel the code under test cannot write; links among the results are dropped, so it cannot make the grader print a host file.
 - UC1: agents work on macOS, the grader runs Linux in Docker (as upstream's CI does) → a fix that works only on one of them would be graded on Linux; upstream's conflict tests pass on both.
 - UC1: lazygit's integration tests run once each (`MaxAttempts: 1`) → a failed regression test is rerun once, and a run in which a test hangs (stopped by `go test -timeout`) is repeated once; acceptance failures are never rerun.
@@ -400,4 +406,16 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   unreliable when a background subagent is involved. Caps set to 100 turns (`high` used 64; 1.5x
   is 96), $25 (`normal-max` $13.72; 1.5x is $20.6) and 5400 s (`normal-max` 2640 s; 2x is 5280).
   The calibration cost $23.79.
-
+- 2026-10-18 — UC2 written: `linkbox-review`; no model was called. linkbox is a Go service of about
+  800 lines written for it; the pull request (+547/−16 in 9 files) is stored as `feature.patch`,
+  so the repository's code scanning does not flag its planted problems, and `setup.sh` applies it
+  uncommitted with new files intent-to-add, which is how `/pr-review-toolkit:review-pr` finds a
+  change. Ten planted problems span the toolkit's areas (SSRF and path traversal, a cache race, a
+  body leak, a weak test, an authorization hole, a 0-based page, a dropped error, a wrong comment, a
+  store returning internal pointers); five decoys look like a goroutine leak, byte truncation, path
+  traversal, a double close and ignored write errors, and are correct. The base and the pull request
+  build, pass `go vet` and their tests with `-race`. The prompt names the review aspects because
+  `review-pr` otherwise ends with `code-simplifier`, which edits code. Findings count at the first
+  line they cite and only the first 25 are read; the self-test's 18 reviews give the perfect review
+  1.00, seven of ten 0.70, evenly spaced spam 0.10 and whole-file ranges 0.00. The README's layout
+  block had meowdoku's last two lines under lazygit since PR 5; they are back in place.

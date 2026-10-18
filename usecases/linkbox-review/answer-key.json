@@ -1,0 +1,122 @@
+{
+  "note": "Line windows refer to the files after feature.patch is applied. A finding counts at the first line it cites. selftest.sh checks that every anchor lies inside its window.",
+  "issues": [
+    {
+      "id": "ssrf",
+      "severity": "high",
+      "area": "security",
+      "summary": "The preview fetcher requests any URL a user saved, internal and loopback addresses included (server-side request forgery); the handler also returns the fetch error text, which reveals what is reachable.",
+      "windows": {"internal/preview/preview.go": [[41, 41], [61, 67]], "internal/api/api.go": [[150, 154]]},
+      "anchors": {"internal/preview/preview.go": "http.NewRequestWithContext(ctx, http.MethodGet, url, nil)", "internal/api/api.go": "s.previews.Title(ctx, l.URL)"}
+    },
+    {
+      "id": "body-leak",
+      "severity": "medium",
+      "area": "resources",
+      "summary": "On a non-200 response, fetch returns without closing the response body, leaking the connection.",
+      "windows": {"internal/preview/preview.go": [[70, 76]]},
+      "anchors": {"internal/preview/preview.go": "return \"\", fmt.Errorf(\"fetching %s: %s\", url, resp.Status)"}
+    },
+    {
+      "id": "cache-race",
+      "severity": "high",
+      "area": "concurrency",
+      "summary": "Fetcher's cache map is read and written without a lock, while TitleAll and concurrent requests call Title from several goroutines: a data race that can crash the process.",
+      "windows": {"internal/preview/preview.go": [[30, 36], [49, 57], [95, 98]], "internal/api/api.go": [[170, 170]]},
+      "anchors": {"internal/preview/preview.go": "f.cache[url] = entry{title: title, fetched: f.now()}", "internal/api/api.go": "s.previews.TitleAll(ctx, urls)"}
+    },
+    {
+      "id": "weak-timeout-test",
+      "severity": "medium",
+      "area": "tests",
+      "summary": "TestTitleTimeout's server answers in 50 ms against a 5 s client timeout and the test expects success, so the timeout path is never tested.",
+      "windows": {"internal/preview/preview_test.go": [[66, 76]]},
+      "anchors": {"internal/preview/preview_test.go": "func TestTitleTimeout(t *testing.T) {"}
+    },
+    {
+      "id": "path-traversal",
+      "severity": "high",
+      "area": "security",
+      "summary": "WriteCSV joins the client's ?name= into the export path and checks only the .csv suffix, so a name with ../ (after the prefix, e.g. /../../x.csv) writes files outside the export directory.",
+      "windows": {"internal/export/export.go": [[24, 29]], "internal/api/api.go": [[195, 195]]},
+      "anchors": {"internal/export/export.go": "path := filepath.Join(dir, filePrefix+name)", "internal/api/api.go": "export.WriteCSV(s.exportDir, q.Get(\"name\"), links)"}
+    },
+    {
+      "id": "export-owner",
+      "severity": "high",
+      "area": "authorization",
+      "summary": "?owner= lets any authenticated user export another user's links; nothing checks that the caller is an operator.",
+      "windows": {"internal/api/api.go": [[186, 193]]},
+      "anchors": {"internal/api/api.go": "owner := q.Get(\"owner\")"}
+    },
+    {
+      "id": "pagination",
+      "severity": "medium",
+      "area": "logic",
+      "summary": "Pages are documented as counting from 1 but the code treats page as 0-based (default 0, page < 0 rejected), so ?page=1 skips the first page and ?page=0 is accepted.",
+      "windows": {"internal/api/api.go": [[95, 110]]},
+      "anchors": {"internal/api/api.go": "page, err := intParam(q.Get(\"page\"), 0)"}
+    },
+    {
+      "id": "ignored-store-error",
+      "severity": "medium",
+      "area": "error handling",
+      "summary": "previewLink discards UpdatePreview's error and answers 200 with the title even when nothing was stored (for example, the link was deleted meanwhile).",
+      "windows": {"internal/api/api.go": [[156, 158]]},
+      "anchors": {"internal/api/api.go": "_ = s.store.UpdatePreview(user, id, title, time.Now())"}
+    },
+    {
+      "id": "ttl-comment",
+      "severity": "low",
+      "area": "comments",
+      "summary": "NewFetcher's comment says titles are kept for a day, but the TTL is 24 minutes.",
+      "windows": {"internal/preview/preview.go": [[38, 38], [42, 42]]},
+      "anchors": {"internal/preview/preview.go": "ttl:    24 * time.Minute,"}
+    },
+    {
+      "id": "listbyowner-aliasing",
+      "severity": "medium",
+      "area": "type design",
+      "summary": "ListByOwner returns pointers to the stored links, breaking the Store's documented promise of copies: callers can change links, and read them, without the lock.",
+      "windows": {"internal/store/store.go": [[48, 49], [155, 171]], "internal/api/api.go": [[194, 194]]},
+      "anchors": {"internal/store/store.go": "func (s *Store) ListByOwner(owner string) []*Link {", "internal/api/api.go": "links := s.store.ListByOwner(owner)"}
+    }
+  ],
+  "decoys": [
+    {
+      "id": "ticker-goroutine",
+      "looks_like": "a leaked goroutine or ticker",
+      "why_correct": "cleanExports stops the ticker with defer and returns when the server's context is cancelled.",
+      "windows": {"cmd/linkbox/main.go": [[84, 85], [88, 89]]},
+      "anchors": {"cmd/linkbox/main.go": "defer ticker.Stop()"}
+    },
+    {
+      "id": "rune-truncation",
+      "looks_like": "truncation that splits a multi-byte character",
+      "why_correct": "the title is cut by runes, not bytes, after counting runes.",
+      "windows": {"internal/store/store.go": [[141, 142]]},
+      "anchors": {"internal/store/store.go": "title = string([]rune(title)[:MaxTitleLen])"}
+    },
+    {
+      "id": "cleanup-remove",
+      "looks_like": "path traversal or deleting arbitrary files",
+      "why_correct": "names come from os.ReadDir of the export directory and only regular files with the export prefix are removed.",
+      "windows": {"internal/export/export.go": [[67, 67], [77, 77]]},
+      "anchors": {"internal/export/export.go": "os.Remove(filepath.Join(dir, e.Name()))"}
+    },
+    {
+      "id": "double-close",
+      "looks_like": "a double close or an ignored close error",
+      "why_correct": "the deferred Close only covers early returns; the explicit, checked Close reports the real error, and a second Close on an *os.File is harmless.",
+      "windows": {"internal/export/export.go": [[34, 34]]},
+      "anchors": {"internal/export/export.go": "defer f.Close()"}
+    },
+    {
+      "id": "csv-sticky-error",
+      "looks_like": "ignored write errors",
+      "why_correct": "csv.Writer keeps its first error and w.Error() after Flush reports it, as the comment says.",
+      "windows": {"internal/export/export.go": [[37, 39]]},
+      "anchors": {"internal/export/export.go": "_ = w.Write(header)"}
+    }
+  ]
+}

@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   score from 8 hidden integration tests (2 from the PR, 6 of ours). `selftest.sh` grades known
   variants of the workspace, the upstream fix among them. Its caps (100 turns, $25, 5400 s)
   come from one calibration run per preset.
+- A `linkbox-review` use case: each arm reviews a pull request in a small Go service written for
+  it, with the pr-review-toolkit plugin, and writes REVIEW.md. `check.sh` matches the findings
+  to ten planted problems and five decoys (score = found − decoys, over ten), with hard gates
+  on REVIEW.md and an untouched pull request and a soft gate when no toolkit agent completed;
+  the rubric gives the judge the answer key. `selftest.sh` grades 18 known reviews.
 
 ### Changed
 
