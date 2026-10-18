@@ -1,8 +1,8 @@
 ---
-# Provisional caps: calibrate with `python3 bench.py run --runs 1 -c light -u lazygit-conflict-markers`
-max_turns: 150
-max_budget_usd: 30
-timeout_seconds: 3600
+# Caps from the calibration pass of 2026-10-18 (PLAN.md log)
+max_turns: 100
+max_budget_usd: 25
+timeout_seconds: 5400
 ---
 This directory is a checkout of lazygit, the terminal UI for git, written in Go. Fix the bug below.
 

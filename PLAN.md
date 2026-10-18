@@ -59,9 +59,9 @@ UC4 is written (`usecases/meowdoku/`). Its caps (200 turns, $40, 7200 s) come fr
 pass of 2026-10-17/18 (see the log). Grading it needs Go 1.27 or later, and perl, on the machine
 running `bench.py`.
 
-UC1 is written (`usecases/lazygit-conflict-markers/`). Its caps (150 turns, $30, 3600 s) are
-provisional until a calibration pass. Running it needs Docker and, the first time, network on the
-machine running `bench.py`, and Go 1.25 or later with git for the agents.
+UC1 is written (`usecases/lazygit-conflict-markers/`). Its caps (100 turns, $25, 5400 s) come from
+the calibration pass of 2026-10-18 (see the log). Running it needs Docker and, the first time,
+network on the machine running `bench.py`, and Go 1.25 or later with git for the agents.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -384,4 +384,20 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   tests are recorded as a sample of the contract (threats above), so further reports of that kind
   will be triaged. Self-test: all 22 variants gave the expected verdict under bash 5.3 and
   `/bin/bash` 3.2 (10 minutes each).
+- 2026-10-18 — UC1 calibration: one run per arm, no judge, Claude Code 2.1.302. Every arm's change
+  passed all gates and 8/8 acceptance tests: `light` 281 s, $0.68, 24 turns; `light-force` 474 s,
+  $0.76, 28 turns; `normal` 328 s, $1.60, 32 turns; `high` 877 s, $7.03 (Fable $3.42), 64 turns;
+  `normal-max` 2640 s, $13.72. As on UC4, the check does not separate the arms, and on cost
+  `light` is 2–20x cheaper. The `high` row reads FAIL 0.00: Docker Desktop's engine stopped while it
+  was graded (`FAIL: harness: the Docker daemon is not running`), and the next three runs failed in
+  `setup.sh` before any agent started, as intended. Re-graded from its saved diff in a fresh
+  workspace once Docker was back, `high` passes at 1.00; the three runs were repeated (those
+  `harness_error` rows stay, as the log is append-only). Sonnet again never called its Opus
+  advisor (0 of 5 so far). `normal-max` is the first arm to spawn a subagent: a background
+  `pr-review-toolkit:code-reviewer` (runs still get the owner's plugins; only MCP servers and
+  Claude in Chrome are isolated), which the `-p` session killed when it ended, with the final
+  message still "waiting for the independent review"; its row reports 2 turns, so turn counts are
+  unreliable when a background subagent is involved. Caps set to 100 turns (`high` used 64; 1.5x
+  is 96), $25 (`normal-max` $13.72; 1.5x is $20.6) and 5400 s (`normal-max` 2640 s; 2x is 5280).
+  The calibration cost $23.79.
 

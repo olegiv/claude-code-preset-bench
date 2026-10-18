@@ -49,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in a Docker container without network: hard gates on `go.mod`, `go.sum`, `vendor/` and the
   build, soft gates on gofmt, vet, the unit tests and lazygit's other integration tests, and a
   score from 8 hidden integration tests (2 from the PR, 6 of ours). `selftest.sh` grades known
-  variants of the workspace, the upstream fix among them.
+  variants of the workspace, the upstream fix among them. Its caps (100 turns, $25, 5400 s)
+  come from one calibration run per preset.
 
 ### Changed
 

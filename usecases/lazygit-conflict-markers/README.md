@@ -12,7 +12,7 @@ and the check that auto-stages files it takes for resolved. Upstream's fix touch
 
 | File | What it is |
 |---|---|
-| `prompt.md` | Caps (provisional) and the task |
+| `prompt.md` | Caps (100 turns, $25, 5400 s, from one calibration run per preset) and the task |
 | `pins.sh` | The upstream commits (base `5dec89a`, reference `f162dc5`), the cache path and the grader's image |
 | `setup.sh` | Fills each workspace with the base commit and pulls the image |
 | `check.sh` | The grader |
