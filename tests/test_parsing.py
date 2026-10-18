@@ -123,7 +123,7 @@ class CommandAndFormatTest(unittest.TestCase):
         self.assertEqual(cmd, ["bash", "/c/light.sh", "-p", "Do it", "--output-format", "json",
                                "--no-session-persistence", "--no-chrome", "--strict-mcp-config",
                                "--mcp-config", os.path.join(ROOT, "bench-mcp.json"),
-                               "--settings", '{"enabledPlugins": {"kit@m": true, "sec@m": false}}',
+                               "--settings", '{"enabledPlugins": {"kit@m": true, "sec@m": false}, "syncClaudeAiPlugins": false}',
                                "--max-turns", "5", "--max-budget-usd", "1.5"])
 
     def test_smoke_and_its_judge_get_no_plugins(self):
@@ -135,7 +135,7 @@ class CommandAndFormatTest(unittest.TestCase):
             bench.cmd_smoke(args)
         self.assertEqual(len(seen), 2)
         for cmd in seen:
-            self.assertEqual(cmd[cmd.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}}')
+            self.assertEqual(cmd[cmd.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}, "syncClaudeAiPlugins": false}')
 
     def test_bench_mcp_config_holds_only_an_isolated_headless_chrome_devtools(self):
         with open(os.path.join(ROOT, "bench-mcp.json"), encoding="utf-8") as f:
@@ -156,7 +156,7 @@ class CommandAndFormatTest(unittest.TestCase):
         prompt, flags = seen[0][2], seen[0][3:]
         self.assertTrue("--no-chrome" in flags and "--strict-mcp-config" in flags, flags)
         self.assertNotIn("--mcp-config", flags)
-        self.assertEqual(flags[flags.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}}')
+        self.assertEqual(flags[flags.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}, "syncClaudeAiPlugins": false}')
         self.assertTrue("x" * 120000 in prompt and "x" * 120001 not in prompt, "the diff is not cut at 120 000 characters")
 
     def test_median_ignores_missing_values(self):

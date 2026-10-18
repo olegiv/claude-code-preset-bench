@@ -275,13 +275,15 @@ def installed_plugins():
 def plugin_settings(keep=()):
     # The --settings value that enables the plugins in keep and turns off every other one Claude Code could load: those
     # installed, those named in the user's enabledPlugins, and those synced from claude.ai (plugins/synced/<id>/<name>).
+    # syncClaudeAiPlugins false also hides synced plugins and stops downloads for this invocation, so a plugin enabled on
+    # claude.ai but not downloaded yet, which no file here names, cannot be synced and loaded at startup.
     config = claude_config_dir()
     names = installed_plugins() | set(keep)
     enabled = read_json_object(os.path.join(config, "settings.json")).get("enabledPlugins")
     if isinstance(enabled, dict):
         names |= set(enabled)
     names |= set("%s@synced" % os.path.basename(os.path.dirname(p)) for p in glob.glob(os.path.join(config, "plugins", "synced", "*", "*", "")))
-    return json.dumps({"enabledPlugins": {n: n in keep for n in sorted(names)}})
+    return json.dumps({"enabledPlugins": {n: n in keep for n in sorted(names)}, "syncClaudeAiPlugins": False})
 
 
 # ----------------------------------------------------------------------------- workspaces

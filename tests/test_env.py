@@ -67,6 +67,9 @@ class PluginSettingsTest(unittest.TestCase):
         self.assertEqual(self.settings(["kit@m"]), {"sec@m": False, "kit@m": True, "other@m": False, "off@m": False, "design@synced": False})
         self.assertEqual(bench.installed_plugins(), {"sec@m", "kit@m"})
 
+    def test_claude_ai_plugin_sync_is_off_so_an_undownloaded_plugin_cannot_load(self):
+        self.assertIs(json.loads(bench.plugin_settings())["syncClaudeAiPlugins"], False)
+
     def test_an_installed_plugins_file_without_a_plugins_key_is_read_whole(self):
         self.write("plugins/installed_plugins.json", json.dumps({"sec@m": [{}]}))
         self.assertEqual(bench.installed_plugins(), {"sec@m"})

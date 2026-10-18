@@ -70,7 +70,7 @@ class CliTest(unittest.TestCase):
     def test_a_dry_run_enables_the_declared_plugin_even_when_it_is_not_installed(self):
         p = self.bench("run", "--dry-run", "--runs", "1", "--no-judge", "-u", "linkbox-review", "-c", "light")
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn("""'{"enabledPlugins": {"pr-review-toolkit@claude-plugins-official": true}}'""", p.stderr)
+        self.assertIn("""'{"enabledPlugins": {"pr-review-toolkit@claude-plugins-official": true}, "syncClaudeAiPlugins": false}'""", p.stderr)
 
     def test_an_unknown_config_is_rejected(self):
         p = self.bench("run", "--dry-run", "-c", "nope")
