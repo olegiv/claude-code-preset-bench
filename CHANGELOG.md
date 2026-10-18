@@ -54,8 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `linkbox-review` use case: each arm reviews a pull request in a small Go service written for
   it, with the pr-review-toolkit plugin, and writes REVIEW.md. `check.sh` matches the findings
   to ten planted problems and five decoys (score = found − decoys, over ten), with hard gates
-  on REVIEW.md and an untouched pull request and a soft gate when no toolkit agent completed;
-  the rubric gives the judge the answer key. `selftest.sh` grades 18 known reviews.
+  on REVIEW.md, an untouched pull request and no commit, and a soft gate when no toolkit agent
+  completed; the rubric gives the judge the answer key. `selftest.sh` grades 19 known reviews.
 
 ### Changed
 

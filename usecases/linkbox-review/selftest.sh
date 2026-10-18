@@ -24,6 +24,7 @@ spam-evenly-spaced|1|<0.40|findings read: 25
 wrong-format|1|0.00|no finding in the required format
 no-review|1|0.00|no REVIEW.md
 code-edited|1|0.00|files of the pull request changed
+committed|1|0.00|HEAD moved
 extra-file|1|1.00|files added besides REVIEW.md
 binary-ignored|0|1.00|issues found 10/10'
 
@@ -112,6 +113,7 @@ run_variant() {
   [ "$name" = no-review ] || write_review "$name" "$ws"
   case $name in
     code-edited) printf '\n// reviewed\n' >> "$ws/internal/api/api.go" ;;
+    committed) (cd "$ws" && git add -A && git -c user.name=agent -c user.email=agent@local -c commit.gpgsign=false commit -q -m review) ;;
     extra-file) echo "scratch" > "$ws/notes.txt" ;;
     binary-ignored) echo "binary" > "$ws/linkbox" && echo "test binary" > "$ws/api.test" ;;
   esac

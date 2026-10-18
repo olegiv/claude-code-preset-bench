@@ -20,3 +20,5 @@ if plugin not in (installed.get("plugins") or installed) or not enabled.get(plug
 EOF
 
 git apply --intent-to-add "$here/feature.patch"
+# check.sh fails a run that moved HEAD: a commit would hide the review from the judge's diff.
+git rev-parse HEAD > "$(git rev-parse --git-dir)/ccbench-base"

@@ -419,3 +419,8 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   line they cite and only the first 25 are read; the self-test's 18 reviews give the perfect review
   1.00, seven of ten 0.70, evenly spaced spam 0.10 and whole-file ranges 0.00. The README's layout
   block had meowdoku's last two lines under lazygit since PR 5; they are back in place.
+- 2026-10-18 — PR 7 review (Codex, one P1): a run that committed REVIEW.md, or the pull request
+  with it, still passed every gate, although the prompt forbids commits and the judge's diff
+  (working tree against `HEAD`) would then miss the work. `setup.sh` now records the starting
+  commit in `.git/ccbench-base`, and `check.sh` hard-fails a run whose `HEAD` moved; a new
+  self-test variant, `committed`, scored 1.00 PASS before the fix and is a hard 0.00 after it.

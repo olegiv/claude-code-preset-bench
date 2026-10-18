@@ -17,11 +17,11 @@ export", adds about 550 lines in 9 files and carries ten planted problems and fi
 | `prompt.md` | Caps (provisional) and the task |
 | `workspace/` | The base service: about 800 lines of Go with tests; `bench.py` commits it |
 | `feature.patch` | The pull request; `setup.sh` applies it. It is a patch, not Go files, so the repository's code scanning does not flag the planted problems |
-| `setup.sh` | Checks that pr-review-toolkit is installed and enabled, then applies the patch with `git apply --intent-to-add` |
+| `setup.sh` | Checks that pr-review-toolkit is installed and enabled, applies the patch with `git apply --intent-to-add`, and records the starting commit in `.git/ccbench-base` |
 | `answer-key.json` | The planted problems and decoys, with line windows in the changed files |
 | `check.sh` | The grader |
 | `rubric.md` | The judge's rubric; it holds the answer key |
-| `selftest.sh` | Checks the use case, then grades 18 known reviews |
+| `selftest.sh` | Checks the use case, then grades 19 known reviews |
 
 ## Requirements
 
@@ -43,7 +43,8 @@ The prompt names the review aspects (`comments tests errors types code`): withou
 
 ## How `check.sh` grades
 
-1. Hard gates (0.00): every file of the pull request must be unchanged, and `REVIEW.md` must exist.
+1. Hard gates (0.00): every file of the pull request must be unchanged, `HEAD` must still be the commit
+   `setup.sh` recorded (the judge's diff would not show committed work), and `REVIEW.md` must exist.
 2. Findings are lines `- [severity] path:line — title: explanation` (a backticked location, a line range and `-`
    for the dash are accepted). Only the first 25 are read, and each counts at the first line it cites, so citing
    whole files or spreading findings evenly gains little: the self-test's evenly spaced 25 findings score 0.10.
@@ -79,7 +80,7 @@ lies in its window and that no windows overlap.
 ## Self-test
 
 `bash selftest.sh` (about 10 seconds) first checks the anchors and windows and that the base and the pull request
-build, vet and test, then grades 18 generated reviews; `CHECK_BASH=/bin/bash` uses macOS's bash 3.2.
+build, vet and test, then grades 19 generated reviews; `CHECK_BASH=/bin/bash` uses macOS's bash 3.2.
 
 | Variant | Verdict |
 |---|---|
@@ -90,7 +91,7 @@ build, vet and test, then grades 18 generated reviews; `CHECK_BASH=/bin/bash` us
 | `all-decoys`, `duplicates` | FAIL 0.00, FAIL 0.10 |
 | `spam-ranges`, `spam-evenly-spaced` | FAIL 0.00, FAIL 0.10 |
 | `26-findings`, `wrong-format` | soft-gate FAIL 1.00, FAIL 0.00 |
-| `no-review`, `code-edited` | hard gate, 0.00 |
+| `no-review`, `code-edited`, `committed` | hard gate, 0.00 |
 | `extra-file`, `binary-ignored` | soft-gate FAIL 1.00, PASS 1.00 |
 
 ## Known limits

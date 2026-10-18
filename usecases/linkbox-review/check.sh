@@ -1,8 +1,8 @@
 #!/bin/bash
 # Grades a linkbox-review run (bash 3.2 or later): matches the findings in REVIEW.md against answer-key.json.
-# Score = (planted issues found - decoys flagged) / issues, at least 0. Hard gates (0.00): REVIEW.md missing, or a
-# file of the pull request changed. Soft gates fail the check without lowering the score. PASS needs a score of at
-# least PASS_SCORE and no failed gate.
+# Score = (planted issues found - decoys flagged) / issues, at least 0. Hard gates (0.00): REVIEW.md missing, a
+# file of the pull request changed, or a commit (HEAD moved from setup.sh's record). Soft gates fail the check
+# without lowering the score. PASS needs a score of at least PASS_SCORE and no failed gate.
 set -u
 
 USECASE_DIR=${USECASE_DIR:-$(cd "$(dirname "$0")" && pwd)}
@@ -58,6 +58,19 @@ changed = [p for p, data in sorted(want.items())
 if changed:
     hard("files of the pull request changed or missing: " + ", ".join(changed[:10]))
 out.append("ok: the pull request's files are unchanged")
+
+# Hard gate: no commits. bench.py diffs the working tree against HEAD for the judge, so a commit would hide the
+# review and the pull request from it.
+git_dir = subprocess.run(["git", "rev-parse", "--absolute-git-dir"], cwd=ws, capture_output=True, text=True).stdout.strip()
+if not git_dir:
+    hard("the workspace is no longer a git repository")
+try:
+    base = open(os.path.join(git_dir, "ccbench-base")).read().strip()
+except OSError:
+    finish(2, 0.0, out + ["FAIL: harness: no record of the starting commit (setup.sh writes .git/ccbench-base)"])
+head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ws, capture_output=True, text=True).stdout.strip()
+if head != base:
+    hard("HEAD moved from the starting commit: the run committed, which the judge's diff would not show")
 
 extra = []
 for d, dirs, files in os.walk(ws):
