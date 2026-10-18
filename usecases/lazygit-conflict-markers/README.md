@@ -55,11 +55,11 @@ an empty diff, since `bench.py` diffs the working tree against `HEAD`. The promp
    hard gate), since replacing them would otherwise follow a link out of the grader's temporary directory.
 4. In a container (`--network none --pull never`, nothing mounted, stopped after 360 s): `go generate` of the test
    list, `go build ./...` (hard gate), then the soft gates gofmt, `go vet ./...` and `go test -short -timeout 60s
-   ./...` (the workspace's unit tests), and all 517 integration tests with `go test -json -timeout 4m`. Agent code
+   ./...` (the workspace's unit tests), and all 519 integration tests with `go test -json -timeout 4m`. Agent code
    runs in there, so of the results that come back, only regular files are kept.
 5. A test that hangs ends the run at that timeout and leaves tests without a result; the suite then runs once more
    in a new container. A test left without a result after that counts as failed.
-6. Score: the fraction of the 5 acceptance tests that pass. The other 512 integration tests are regression tests:
+6. Score: the fraction of the 7 acceptance tests that pass. The other 512 integration tests are regression tests:
    one that fails gets one rerun in a new container (upstream runs each test once, `MaxAttempts: 1`), and a second
    failure fails the check without lowering the score. Acceptance failures are never rerun.
 
@@ -78,6 +78,8 @@ Acceptance tests fail at the base commit and pass at the reference (checked five
 | `conflict_marker_size_short_markers_are_content` | ours | A seven-character marker block in such a file is content: only the real hunk is offered, and the block survives |
 | `conflict_marker_size_from_pattern` | ours | A length of 12 set by a `*.md` pattern works, which catches hard-coded lengths and literal parsing |
 | `conflict_marker_size_resolve_all_hunks` | ours | Both 32-character hunks resolve and lazygit then offers to continue the merge |
+| `conflict_marker_size_mixed_sizes` | ours | One merge with a default-length file and a length-12 file: each keeps its own length, which catches one length applied to every conflicted file |
+| `conflict_marker_size_other_attribute_sources` | ours | Lengths of 20 and 16 from a subdirectory's `.gitattributes` and from `.git/info/attributes`, which catches reading only the root file |
 
 `conflict_marker_size_other_files_unaffected` (ours) passes at both commits, so it is a regression test: a conflict
 in a file the attribute does not cover keeps the default markers.
@@ -90,21 +92,22 @@ failure there is "didn't finish the job", not grader noise.
 ## Self-test
 
 `bash selftest.sh` (about 8 minutes) builds each variant's workspace as `bench.py` does and runs `check.sh` on it;
-`CHECK_BASH=/bin/bash` uses macOS's bash 3.2. `bash selftest.sh reference` runs one variant. On 2026-10-18 all 18
+`CHECK_BASH=/bin/bash` uses macOS's bash 3.2. `bash selftest.sh reference` runs one variant. On 2026-10-18 all 19
 gave the expected verdict under bash 5.3 and under `/bin/bash` 3.2.
 
 | Variant | What it is | Verdict |
 |---|---|---|
-| `untouched` | The workspace as `setup.sh` leaves it | FAIL, 0.00: acceptance 0/5 |
+| `untouched` | The workspace as `setup.sh` leaves it | FAIL, 0.00: acceptance 0/7 |
 | `reference` | Every file upstream's PR changed, its tests included | PASS, 1.00 |
 | `reference-committed` | The reference, committed | PASS, 1.00 (the judge would see an empty diff) |
 | `reference-agent-tests-broken` | The reference plus an integration test of the agent's that does not compile | PASS, 1.00: the grader drops it |
 | `reference-no-test-updates` | The reference with the PR's unit-test changes undone | FAIL, 1.00: go vet and the unit tests (the old `findConflicts` signature, the file loader's fake git calls) |
 | `reference-gofmt-miss` | The reference with one misformatted line | FAIL, 1.00: gofmt |
-| `hardcoded-32` | 32 for every file that sets the attribute, whatever its value | FAIL, 0.80: `from_pattern` |
-| `auto-stage-default` | The auto-staging check left on the default length | FAIL, 0.60: `not_auto_staged`, `short_markers_are_content` |
-| `unset-means-32` | 32 also for files without the attribute | FAIL, 1.00: 32 other integration tests and a unit test break |
-| `spins-on-pattern` | lazygit loops forever on a length of 12 | FAIL, 0.80: the test driver gives up, so `from_pattern` fails rather than hangs |
+| `hardcoded-32` | 32 for every file that sets the attribute, whatever its value | FAIL, 0.57: `from_pattern`, `mixed_sizes`, `other_attribute_sources` |
+| `auto-stage-default` | The auto-staging check left on the default length | FAIL, 0.43: `not_auto_staged`, `short_markers_are_content`, `mixed_sizes`, `other_attribute_sources` |
+| `unset-means-32` | 32 also for files without the attribute | FAIL, 0.86: `mixed_sizes`; 32 other integration tests and a unit test break |
+| `one-size-for-all` | Every conflicted file gets the first one's length | FAIL, 0.71: `mixed_sizes`, `other_attribute_sources` |
+| `spins-on-pattern` | lazygit loops forever on a length of 12 | FAIL, 0.71: the test driver gives up, so `from_pattern` and `mixed_sizes` fail rather than hang |
 | `first-run-times-out` | The reference, with the first integration run stopped after 2 s | PASS, 1.00, after one rerun of the suite |
 | `vendor-changed`, `go-mod-changed` | A vendored file, `go.mod` | FAIL, 0.00: hard gate |
 | `build-broken` | A syntax error | FAIL, 0.00: hard gate |

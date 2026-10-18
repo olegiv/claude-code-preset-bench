@@ -9,16 +9,17 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 CHECK_BASH=${CHECK_BASH:-bash}
 
 # name|expected exit|expected score|text the output must contain (or, after "!", must not contain)
-VARIANTS='untouched|1|0.00|acceptance 0/5
+VARIANTS='untouched|1|0.00|acceptance 0/7
 reference|0|1.00|ok: no regression
-reference-committed|0|1.00|acceptance 5/5
-reference-agent-tests-broken|0|1.00|acceptance 5/5
+reference-committed|0|1.00|acceptance 7/7
+reference-agent-tests-broken|0|1.00|acceptance 7/7
 reference-no-test-updates|1|1.00|FAIL: go test -short
 reference-gofmt-miss|1|1.00|FAIL: gofmt
-hardcoded-32|1|0.80|conflict_marker_size_from_pattern
-auto-stage-default|1|<1|conflict_marker_size_not_auto_staged
-unset-means-32|1|1.00|conflict_marker_size_other_files_unaffected
-spins-on-pattern|1|0.80|conflict_marker_size_from_pattern (fail)
+hardcoded-32|1|0.57|conflict_marker_size_other_attribute_sources (fail)
+auto-stage-default|1|0.43|conflict_marker_size_not_auto_staged (fail)
+unset-means-32|1|0.86|existing behavior broken
+one-size-for-all|1|0.71|conflict_marker_size_mixed_sizes (fail)
+spins-on-pattern|1|0.71|conflict_marker_size_from_pattern (fail)
 first-run-times-out|0|1.00|running the suite again
 vendor-changed|1|0.00|vendor/ changed
 go-mod-changed|1|0.00|go.mod changed
@@ -65,6 +66,10 @@ apply() {
     auto-stage-default)
       reference
       mutate pkg/gui/controllers/helpers/refresh_helper.go 's/(filepath\.Join\(env\.git\.RepoPaths\.WorktreePath\(\), file\.Path\),\s*)file\.ConflictMarkerSize\)/${1}0)/' ;;
+    one-size-for-all)
+      # Every conflicted file gets the marker length of the first one.
+      reference
+      mutate pkg/commands/git_commands/file_loader.go 's/file\.ConflictMarkerSize = markerSizes\[file\.Path\]/file.ConflictMarkerSize = markerSizes[conflictedFiles[0].Path]/' ;;
     unset-means-32)
       reference
       mutate pkg/commands/git_commands/file_loader.go 's/(markerSizes\[fields\[i\]\] = markerSize\n\t\t\})/$1 else {\n\t\t\tmarkerSizes[fields[i]] = 32\n\t\t}/' ;;

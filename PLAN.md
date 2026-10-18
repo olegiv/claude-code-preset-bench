@@ -50,7 +50,7 @@ points, so the set should cover:
 
 | slot | shape | why it matters | grading |
 |---|---|---|---|
-| UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 5 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
+| UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 7 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
 | UC2 | PR review with pr-review-toolkit on a fixed diff | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `rubric.md` only: findings vs a known issue list (recall), false positives, structure; optional `check.sh` for required sections |
 | UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
@@ -360,4 +360,15 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   reference at 1.00, the untouched workspace at 0.00, a hard-coded length at 0.80, the auto-staging
   check left on the default length at 0.60, and the length applied to every file at 1.00 with 32
   regressions. Caps are provisional.
+- 2026-10-18 — PR 5 review (Codex, two P1), both about gaps in UC1's hidden tests. Every scored test
+  had a single conflicted file, so a fix that gave all conflicted files one file's marker length
+  passed; and every length came from the root `.gitattributes`, so a fix that parsed only that file
+  passed. Two acceptance tests of ours close them: `mixed_sizes` (one merge with a default-length
+  file and a length-12 file) and `other_attribute_sources` (lengths 20 and 16 from a subdirectory's
+  `.gitattributes` and from `.git/info/attributes`). Both fail at the base (a premature continue
+  prompt; the editor does not open) and pass at the reference, in 5 of 5 runs each way. The score now
+  counts 7 acceptance tests; a new self-test variant that applies the first file's length to every
+  file scores 0.71 (the five earlier tests all pass on it), and the other partial variants drop to
+  0.43–0.86.
+  Self-test: all 19 variants gave the expected verdict under bash 5.3 and `/bin/bash` 3.2.
 

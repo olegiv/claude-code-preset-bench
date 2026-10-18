@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setup.sh` fetches that commit into each workspace through a local cache. `check.sh` grades
   in a Docker container without network: hard gates on `go.mod`, `go.sum`, `vendor/` and the
   build, soft gates on gofmt, vet, the unit tests and lazygit's other integration tests, and a
-  score from 5 hidden integration tests (2 from the PR, 3 of ours). `selftest.sh` grades known
+  score from 7 hidden integration tests (2 from the PR, 5 of ours). `selftest.sh` grades known
   variants of the workspace, the upstream fix among them.
 
 ### Changed

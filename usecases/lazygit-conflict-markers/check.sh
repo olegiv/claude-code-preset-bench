@@ -12,7 +12,8 @@ HIDDEN=$USECASE_DIR/hidden
 # Each fails at the base commit and passes at the reference (selftest.sh checks both).
 ACCEPTANCE="conflicts/conflict_marker_size_resolve conflicts/conflict_marker_size_not_auto_staged
 conflicts/conflict_marker_size_short_markers_are_content conflicts/conflict_marker_size_from_pattern
-conflicts/conflict_marker_size_resolve_all_hunks"
+conflicts/conflict_marker_size_resolve_all_hunks conflicts/conflict_marker_size_mixed_sizes
+conflicts/conflict_marker_size_other_attribute_sources"
 # Container limits. go test stops the unit tests at 60 s (normally 5 s) and the integration run at 4 minutes
 # (normally 20 s; 3 minutes in a rerun), inside the container's limit, so that the results so far survive a hung
 # test. The worst case, 360 + 240 + 240 s, stays under bench.py's 900 s.
