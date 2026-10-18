@@ -44,6 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `usecases/meowdoku/README.md` documents running it, the grading, the hidden tests, the
   reference solution and maintenance.
 
+### Changed
+
+- Runs no longer see the MCP servers and claude.ai connectors you have installed or connected, or
+  Claude in Chrome: `bench.py` passes `--no-chrome --strict-mcp-config` and `bench-mcp.json`,
+  which holds only Chrome DevTools, headless in a throwaway profile. The judge gets no MCP
+  servers either, so it has no tools at all.
+- The judge sees up to 120 000 characters of the diff (was 60 000).
+
 ### Fixed
 
 - `summarize` counts every errored run (capped, timed out, a harness fault) as a failure, also

@@ -1,9 +1,12 @@
 """Pure helpers: numbers, frontmatter, Claude Code result JSON, cost accounting, formatting."""
 
 import json
+import os
+import re
 import unittest
+from unittest import mock
 
-from helpers import bench
+from helpers import ROOT, bench, temp_dir, write_file
 
 RESULT = {
     "subtype": "success", "is_error": False, "duration_ms": 1200, "duration_api_ms": 900, "num_turns": 4,
@@ -111,7 +114,30 @@ class CommandAndFormatTest(unittest.TestCase):
     def test_build_agent_cmd_appends_the_headless_flags_and_caps(self):
         cmd = bench.build_agent_cmd({"path": "/c/light.sh"}, {"prompt": "Do it", "max_turns": 5, "max_budget_usd": 1.5})
         self.assertEqual(cmd, ["bash", "/c/light.sh", "-p", "Do it", "--output-format", "json",
-                               "--no-session-persistence", "--max-turns", "5", "--max-budget-usd", "1.5"])
+                               "--no-session-persistence", "--no-chrome", "--strict-mcp-config",
+                               "--mcp-config", os.path.join(ROOT, "bench-mcp.json"),
+                               "--max-turns", "5", "--max-budget-usd", "1.5"])
+
+    def test_bench_mcp_config_holds_only_an_isolated_headless_chrome_devtools(self):
+        with open(os.path.join(ROOT, "bench-mcp.json"), encoding="utf-8") as f:
+            servers = json.load(f)["mcpServers"]
+        self.assertEqual(list(servers), ["chrome-devtools"])
+        args = servers["chrome-devtools"]["args"]
+        self.assertEqual(servers["chrome-devtools"]["command"], "npx")
+        self.assertTrue(any(re.match(r"^chrome-devtools-mcp@\d+\.\d+\.\d+$", a) for a in args), args)
+        self.assertIn("--isolated", args)
+        self.assertIn("--headless", args)
+
+    def test_the_judge_gets_no_mcp_servers_and_up_to_120000_characters_of_diff(self):
+        seen = []
+        rubric = write_file(os.path.join(temp_dir(self), "rubric.md"), "Score it.\n")
+        with mock.patch.object(bench, "run_claude", lambda cmd, cwd, env, timeout: seen.append(cmd) or (1, "", "", 0, False)), \
+                mock.patch.object(bench, "log"):
+            bench.run_judge({"rubric": rubric}, "Do it", "Done", "x" * 130000, "PASS (score 1.00): 1.00", "opus", "high", {}, ".")
+        prompt, flags = seen[0][2], seen[0][3:]
+        self.assertTrue("--no-chrome" in flags and "--strict-mcp-config" in flags, flags)
+        self.assertNotIn("--mcp-config", flags)
+        self.assertTrue("x" * 120000 in prompt and "x" * 120001 not in prompt, "the diff is not cut at 120 000 characters")
 
     def test_median_ignores_missing_values(self):
         self.assertEqual(bench.median([3, None, 1, 2]), 2)

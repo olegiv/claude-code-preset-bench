@@ -20,7 +20,8 @@ plain Opus and with Opus plus a Fable advisor?
 | `light-force` | Sonnet 5.5 | Opus | Haiku, forced | medium | `CLAUDE_CODE_SUBAGENT_MODEL=haiku CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 claude --effort medium --model sonnet --advisor opus` |
 
 All arms add `--dangerously-skip-permissions`; the harness adds `-p --output-format json
---no-session-persistence --max-turns N --max-budget-usd X`.
+--no-session-persistence --no-chrome --strict-mcp-config --mcp-config bench-mcp.json --max-turns N
+--max-budget-usd X`, so the only MCP server a run gets is Chrome DevTools (headless, throwaway profile).
 
 Design notes:
 
@@ -107,8 +108,8 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - Effort confound → `normal-max` arm (`normal` at max).
 - Subagent-model confound (Explore and Plan inherit the main model unless FORCE is on) → `light-force` arm.
 - Timed-out runs lose their usage: Claude Code reports cost and turns only on exit → a `harness_timeout` row has neither; timeouts are set at 2x the slowest observed run so that runs finish.
-- The owner's MCP servers reach every run → agents can drive a browser (every UC4 calibration run that wrote a final message says it tested in Chrome); the same for all arms, and not recorded per run.
-- UC4: the judge sees 60 000 diff characters → the `high` and `normal-max` diffs (83 000–87 000 in calibration) are cut off; the rubric tells the judge not to penalise what it cannot see.
+- The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both.
+- Judge diff limit: 60 000 characters cut off the UC4 calibration diffs of `high` and `normal-max` (83 000–87 000) → raised to 120 000 on 2026-10-18; a longer diff is still cut off, and the rubric tells the judge not to penalise what it cannot see.
 - UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
 - UC4, known limit (M16): a stalled handler's goroutine keeps running inside the hidden test binary (no process isolation) → watchdogs bound the wait, not the CPU it uses.
@@ -297,4 +298,21 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   `https://four.htmx.org/docs/whats-new-in-htmx-4`. The `light` run had the old line (its agent hit
   the 404), so it is not a controlled comparison with the other four; with `light-force`, which had
   the same prompt as the Opus arms ($0.82), the Sonnet arms are still 4–17x cheaper.
+- 2026-10-18 — Runs and the judge isolated from the owner's tools, before any real run. A
+  1-turn Haiku session with the old flags started with 31 built-in tools and 163 MCP tools: two
+  Chrome DevTools servers (the owner's and the plugin's) and the claude.ai connectors (Atlassian,
+  Figma, Stripe, Claude Docs); other plugin servers needed auth or failed. The judge had no
+  built-in tools (`--tools ""`) but the same 163 MCP tools. Claude in Chrome does not load in `-p`
+  mode, so the calibration agents tested in Chrome DevTools' own profile, not the owner's browser.
+  Now runs get `--no-chrome --strict-mcp-config --mcp-config bench-mcp.json`, which holds
+  `chrome-devtools-mcp@1.11.0 --isolated --headless` (latest stable, no runtime dependencies,
+  `npm audit` clean), and the judge `--no-chrome --strict-mcp-config` alone. The same probes then
+  showed a run with 28 built-in tools (only the three MCP resource tools gone; WebFetch and
+  WebSearch kept) and the 32 Chrome DevTools tools, and the judge with no tools at all, so the 163
+  tool definitions no longer sit in every judge call's context (the two judge probes cost $0.41 and
+  $0.04, single calls whose cost also depends on cache state). Headless DevTools sessions, built
+  by `build_agent_cmd` in its real argument order, opened example.com and read its title, and a
+  1-turn cap still stopped the run (`error_max_turns`). The judge's diff limit went from 60 000 to 120 000 characters, so every UC4 calibration
+  diff (up to 87 000) would now be seen whole; the rubric says so. The configs are unchanged, so
+  the `oclaude-*` launchers keep the owner's MCP servers.
 

@@ -135,10 +135,10 @@ machine, not the agent, is at fault (no Go, Go older than 1.27, no perl). The CS
 that as a failed check with 0.00 too, so look for it in the log before trusting a 0.00.
 
 The judge sees the rubric, the prompt, the agent's final message (up to 12 000 characters), the
-workspace diff (up to 60 000 characters) and the check verdict as `PASS (score 1.00): 1.00`. The
+workspace diff (up to 120 000 characters) and the check verdict as `PASS (score 1.00): 1.00`. The
 reference solution's diff is about 40 000 characters. In the calibration pass the Sonnet presets and
-`normal` wrote 36 000–52 000, but `high` and `normal-max` wrote 83 000–87 000 (mostly tests and
-CSS), so the judge sees only the first 60 000 of theirs.
+`normal` wrote 36 000–52 000, and `high` and `normal-max` 83 000–87 000 (mostly tests and CSS), all
+within the limit.
 
 ## How `check.sh` grades
 

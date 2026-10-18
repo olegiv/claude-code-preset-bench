@@ -22,6 +22,7 @@ verdict and an optional LLM-judge score. The configs double as the owner's daily
 | `bench.py` | The harness: `list`, `smoke`, `run`, `summarize`. Standard library only |
 | `configs/*.sh` | One preset per file: `exec claude` with the preset's flags and environment, plus `"$@"` |
 | `install-launchers.sh` | Links the configs onto `PATH` as `oclaude-<name>`, keeping replaced regular files as `.bak` |
+| `bench-mcp.json` | The only MCP server a run gets: Chrome DevTools, headless, in a throwaway profile |
 | `usecases/<name>/` | `prompt.md` (frontmatter and prompt), `workspace/`, `check.sh`, `rubric.md`, optional `setup.sh`; folders starting with `_` are ignored |
 | `results/runs.csv`, `results/summary.md` | Append-only run log and its summary; `results/raw/` is gitignored |
 | `tests/` | `unittest` suite; a fake `claude` (`tests/helpers.py`) stands in for the CLI, so no model is called |
@@ -71,6 +72,8 @@ Before a commit, run these on the exact tree being committed:
   `model: inherit` included; only forks and skills with `model: inherit` keep the main model.
 - **Environment.** `bench.py` strips variables that would override a config (`STRIP_VARS`) and a
   parent Claude Code session's variables (`SESSION_VARS`). Log only their names: one is a token.
+  Runs and the judge get `--no-chrome --strict-mcp-config`, so the owner's MCP servers, claude.ai
+  connectors and Claude in Chrome never reach them; runs add `bench-mcp.json`, the judge nothing.
 - **Results.** `results/runs.csv` is append-only: never edit or rewrite its rows. Raw outputs stay in
   the gitignored `results/raw/`. Record findings and design changes in the log at the end of
   `PLAN.md`.

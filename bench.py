@@ -48,13 +48,18 @@ DEFAULT_MAX_TURNS = 40
 DEFAULT_MAX_BUDGET_USD = 10.0
 DEFAULT_TIMEOUT_S = 1800
 
+# Runs and the judge see no MCP server the owner has installed or connected (plugins, claude.ai connectors) and no
+# Claude in Chrome; runs get only the servers in bench-mcp.json: Chrome DevTools, headless, in a throwaway profile.
+MCP_CONFIG = os.path.join(ROOT, "bench-mcp.json")
+ISOLATION_FLAGS = ["--no-chrome", "--strict-mcp-config"]
+
 # Flags the harness appends to every agent run (the config script holds the preset itself).
-HEADLESS_FLAGS = ["--output-format", "json", "--no-session-persistence"]
+HEADLESS_FLAGS = ["--output-format", "json", "--no-session-persistence"] + ISOLATION_FLAGS + ["--mcp-config", MCP_CONFIG]
 
 # Judge settings: a fixed model that is NOT one of the arms, no tools, structured output.
 JUDGE_DEFAULT_MODEL = "opus"
 JUDGE_DEFAULT_EFFORT = "high"
-JUDGE_FLAGS = ["--output-format", "json", "--no-session-persistence", "--tools", "", "--max-turns", "3"]
+JUDGE_FLAGS = ["--output-format", "json", "--no-session-persistence", "--tools", ""] + ISOLATION_FLAGS + ["--max-turns", "3"]
 JUDGE_SCHEMA = json.dumps({
     "type": "object",
     "properties": {
@@ -63,7 +68,7 @@ JUDGE_SCHEMA = json.dumps({
     },
     "required": ["score", "reasoning"],
 })
-DIFF_LIMIT = 60000      # chars of diff shown to the judge
+DIFF_LIMIT = 120000     # chars of diff shown to the judge
 RESULT_LIMIT = 12000    # chars of the agent's final message shown to the judge
 
 # Environment variables that would silently override what the config scripts set.

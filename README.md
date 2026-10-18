@@ -76,8 +76,14 @@ session with that preset, so the configs double as your daily `oclaude-*` launch
 ```
 
 When benchmarking, the harness appends `-p <prompt> --output-format json --no-session-persistence
---max-turns N --max-budget-usd X`. Keep model, effort, advisor, subagent env and
-`--dangerously-skip-permissions` in the config; keep everything else out.
+--no-chrome --strict-mcp-config --mcp-config bench-mcp.json --max-turns N --max-budget-usd X`. Keep
+model, effort, advisor, subagent env and `--dangerously-skip-permissions` in the config; keep
+everything else out.
+
+A run therefore sees none of the MCP servers or claude.ai connectors you have installed or
+connected, and no Claude in Chrome: only the Chrome DevTools server in `bench-mcp.json`, headless,
+in a throwaway profile. Your `oclaude-*` launchers are unaffected, since they do not add these
+flags.
 
 ```bash
 #!/bin/bash
@@ -143,9 +149,10 @@ suite passes, the build compiles, a file exists, a file you told the agent not t
 byte-identical to the original (`cmp -s`).
 
 **`rubric.md`** (optional) — what a 10 looks like, what loses points, what is a 0. The judge sees
-the rubric, the prompt, the agent's final message, the workspace diff (truncated at 60k chars) and
+the rubric, the prompt, the agent's final message, the workspace diff (truncated at 120k chars) and
 the `check.sh` verdict, and returns a 0-10 score via structured output. The judge runs with
-`--tools ""`, so it only reads what it is given.
+`--tools ""`, `--no-chrome` and `--strict-mcp-config`, so it has no tools and only reads what it is
+given.
 
 For use cases whose output is not code (a review, a document), use `rubric.md` on its own, or a
 `check.sh` that only verifies structural things (file exists, has the expected sections).
@@ -221,6 +228,6 @@ workspaces and the launcher installer run in temporary directories. CI runs the 
 - The agent is not sandboxed either: an arm runs with `--dangerously-skip-permissions`, as you,
   with your files and network, so it can read or change this checkout, a use case's `check.sh`
   and hidden tests included. Only the workspace and the prompt are given to it.
-- The judge's view of the diff is truncated at 60k characters and of the final message at 12k.
+- The judge's view of the diff is truncated at 120k characters and of the final message at 12k.
 - `repo:` worktrees start at `HEAD`; if the task needs uncommitted scaffolding, commit it on a
   branch first or put it in `workspace/` instead.
