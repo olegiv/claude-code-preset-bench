@@ -74,6 +74,8 @@ Before a commit, run these on the exact tree being committed:
   parent Claude Code session's variables (`SESSION_VARS`). Log only their names: one is a token.
   Runs and the judge get `--no-chrome --strict-mcp-config`, so the owner's MCP servers, claude.ai
   connectors and Claude in Chrome never reach them; runs add `bench-mcp.json`, the judge nothing.
+  `--settings` turns off every plugin except those the use case declares (`plugins:` in
+  `prompt.md`); the judge and `smoke` get none.
 - **Results.** `results/runs.csv` is append-only: never edit or rewrite its rows. Raw outputs stay in
   the gitignored `results/raw/`. Record findings and design changes in the log at the end of
   `PLAN.md`.

@@ -1,8 +1,8 @@
 #!/bin/bash
 # selftest.sh [variant...]: checks the use case itself, then grades known REVIEW.md variants and compares
 # check.sh's exit code, score and output with what the grader should say. Each workspace is built as bench.py
-# builds one (workspace/ committed, then setup.sh). Needs Go, git, python3 and the pr-review-toolkit plugin
-# (setup.sh checks it). CHECK_BASH=/bin/bash runs check.sh under macOS's bash 3.2.
+# builds one (workspace/ committed, then setup.sh). Needs Go, git and python3. CHECK_BASH=/bin/bash runs
+# check.sh under macOS's bash 3.2.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 CHECK_BASH=${CHECK_BASH:-bash}

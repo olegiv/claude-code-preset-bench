@@ -1,6 +1,6 @@
 # Benchmark summary
 
-Generated 2026-10-18 19:32 from 18 runs in `results/runs.csv`.
+Generated 2026-10-18 21:06 from 19 runs in `results/runs.csv`.
 
 Medians unless stated. `pass` = deterministic check pass rate (errored runs count as failures), `judge` = median LLM-judge score (0-10), `cost` = Claude Code's client-side estimate (`total_cost_usd`, all models incl. subagents and advisor, excludes the judge), `advisor` = the part of that cost billed to the advisor model, `cache read` = median cache_read_input_tokens.
 
@@ -18,6 +18,7 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | lazygit-conflict-markers | light-force | 2 | 1 | 50% | - | 473.9 | 473.9-473.9 | $0.756 | $0.000 | - | 28.0 | 1957842 |
 | lazygit-conflict-markers | normal | 2 | 1 | 50% | - | 327.7 | 327.7-327.7 | $1.602 | - | - | 32.0 | 2187190 |
 | lazygit-conflict-markers | normal-max | 2 | 1 | 50% | - | 2640.2 | 2640.2-2640.2 | $13.723 | - | - | 2.0 | 701486 |
+| linkbox-review | light | 1 | 0 | 100% | - | 123.7 | 123.7-123.7 | $1.710 | $0.692 | $1.710 | 15.0 | 406723 |
 | meowdoku | high | 1 | 0 | 100% | - | 2526.9 | 2526.9-2526.9 | $13.881 | $4.410 | $13.881 | 127.0 | 20319704 |
 | meowdoku | light | 1 | 0 | 100% | - | 557.1 | 557.1-557.1 | $0.871 | $0.000 | $0.871 | 32.0 | 1963785 |
 | meowdoku | light-force | 1 | 0 | 100% | - | 661.3 | 661.3-661.3 | $0.822 | $0.000 | $0.822 | 27.0 | 1623792 |
@@ -29,7 +30,7 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | use case | config | n | err | pass | judge | wall s (med) | min-max | cost (med) | advisor (med) | cost (sum) | turns | cache read |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ALL | high | 3 | 0 | 67% | 8.0 | 876.9 | 24.9-2526.9 | $7.033 | $3.418 | $21.263 | 64.0 | 5777402 |
-| ALL | light | 3 | 0 | 100% | 10.0 | 281.3 | 11.5-557.1 | $0.682 | $0.000 | $1.705 | 24.0 | 1536960 |
+| ALL | light | 4 | 0 | 100% | 10.0 | 202.5 | 11.5-557.1 | $0.776 | $0.000 | $3.415 | 19.5 | 971842 |
 | ALL | light-force | 4 | 1 | 75% | 10.0 | 473.9 | 12.0-661.3 | $0.756 | $0.000 | - | 27.0 | 1623792 |
 | ALL | normal | 4 | 1 | 75% | 9.0 | 327.7 | 17.0-703.5 | $1.602 | - | - | 32.0 | 2187190 |
 | ALL | normal-max | 4 | 2 | 50% | 8.0 | 2640.2 | 35.0-3602.5 | $7.057 | - | - | 5.5 | 463455 |
@@ -37,7 +38,7 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 ## Models billed per config
 
 - **high**: claude-fable-5-1, claude-haiku-5-5, claude-opus-5-5
-- **light**: claude-haiku-5-5, claude-sonnet-5-5
+- **light**: claude-haiku-5-5, claude-opus-5-5, claude-sonnet-5-5
 - **light-force**: claude-haiku-5-5, claude-sonnet-5-5
 - **normal**: claude-haiku-5-5, claude-opus-5-5
 - **normal-max**: claude-opus-5-5

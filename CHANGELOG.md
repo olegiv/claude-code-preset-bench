@@ -64,6 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which holds only Chrome DevTools, headless in a throwaway profile. The judge gets no MCP
   servers either, so it has no tools at all. `run` fetches the server's package before the first
   timed run, and `run` and `smoke` refuse a machine with an administrator's `managed-mcp.json`.
+- Runs get only the plugins their use case declares (`plugins:` in `prompt.md`), and the judge
+  and `smoke` none: `bench.py` passes `--settings` turning off every other plugin you installed,
+  enabled or synced from claude.ai, so no plugin hook acts on a run. security-guidance's Stop
+  hook had reviewed each run's git diff, in `linkbox-review` the planted pull request, and handed
+  the findings to the agent. `run` refuses to start when a declared plugin is not installed;
+  `linkbox-review` declares pr-review-toolkit, and its `setup.sh` no longer checks for it.
 - The judge sees up to 120 000 characters of the diff (was 60 000).
 
 ### Fixed

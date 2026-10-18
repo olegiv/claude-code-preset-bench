@@ -1,5 +1,6 @@
 """Pure helpers: numbers, frontmatter, Claude Code result JSON, cost accounting, formatting."""
 
+import argparse
 import json
 import os
 import re
@@ -111,12 +112,30 @@ class ExtractMetricsTest(unittest.TestCase):
 class CommandAndFormatTest(unittest.TestCase):
     """The agent command line and the summary's number formatting."""
 
-    def test_build_agent_cmd_appends_the_headless_flags_and_caps(self):
-        cmd = bench.build_agent_cmd({"path": "/c/light.sh"}, {"prompt": "Do it", "max_turns": 5, "max_budget_usd": 1.5})
+    def installed(self, *names):
+        config = temp_dir(self)
+        write_file(os.path.join(config, "plugins", "installed_plugins.json"), json.dumps({"plugins": {n: [{}] for n in names}}))
+        return mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": config})
+
+    def test_build_agent_cmd_appends_the_headless_flags_plugins_and_caps(self):
+        with self.installed("sec@m"):
+            cmd = bench.build_agent_cmd({"path": "/c/light.sh"}, {"prompt": "Do it", "max_turns": 5, "max_budget_usd": 1.5, "plugins": ["kit@m"]})
         self.assertEqual(cmd, ["bash", "/c/light.sh", "-p", "Do it", "--output-format", "json",
                                "--no-session-persistence", "--no-chrome", "--strict-mcp-config",
                                "--mcp-config", os.path.join(ROOT, "bench-mcp.json"),
+                               "--settings", '{"enabledPlugins": {"kit@m": true, "sec@m": false}}',
                                "--max-turns", "5", "--max-budget-usd", "1.5"])
+
+    def test_smoke_and_its_judge_get_no_plugins(self):
+        seen = []
+        args = argparse.Namespace(config=["light"], no_judge=False, judge_model="opus", judge_effort="high")
+        with self.installed("sec@m"), mock.patch.object(bench, "MANAGED_MCP_PATHS", []), mock.patch.object(bench, "log"), \
+                mock.patch.object(bench, "claude_version", return_value="test"), \
+                mock.patch.object(bench, "run_claude", lambda cmd, cwd, env, timeout: seen.append(cmd) or (1, "", "", 0, False)):
+            bench.cmd_smoke(args)
+        self.assertEqual(len(seen), 2)
+        for cmd in seen:
+            self.assertEqual(cmd[cmd.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}}')
 
     def test_bench_mcp_config_holds_only_an_isolated_headless_chrome_devtools(self):
         with open(os.path.join(ROOT, "bench-mcp.json"), encoding="utf-8") as f:
@@ -128,15 +147,16 @@ class CommandAndFormatTest(unittest.TestCase):
         self.assertIn("--isolated", args)
         self.assertIn("--headless", args)
 
-    def test_the_judge_gets_no_mcp_servers_and_up_to_120000_characters_of_diff(self):
+    def test_the_judge_gets_no_mcp_servers_no_plugins_and_up_to_120000_characters_of_diff(self):
         seen = []
         rubric = write_file(os.path.join(temp_dir(self), "rubric.md"), "Score it.\n")
         with mock.patch.object(bench, "run_claude", lambda cmd, cwd, env, timeout: seen.append(cmd) or (1, "", "", 0, False)), \
-                mock.patch.object(bench, "log"):
+                mock.patch.object(bench, "log"), self.installed("sec@m"):
             bench.run_judge({"rubric": rubric}, "Do it", "Done", "x" * 130000, "PASS (score 1.00): 1.00", "opus", "high", {}, ".")
         prompt, flags = seen[0][2], seen[0][3:]
         self.assertTrue("--no-chrome" in flags and "--strict-mcp-config" in flags, flags)
         self.assertNotIn("--mcp-config", flags)
+        self.assertEqual(flags[flags.index("--settings") + 1], '{"enabledPlugins": {"sec@m": false}}')
         self.assertTrue("x" * 120000 in prompt and "x" * 120001 not in prompt, "the diff is not cut at 120 000 characters")
 
     def test_median_ignores_missing_values(self):

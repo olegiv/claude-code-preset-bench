@@ -11,7 +11,7 @@ and compare wall time, cost, turns and graded quality across repeated runs.
 
 Layout:
     configs/<name>.sh            exec's `claude` with the preset's flags/env; harness appends headless flags
-    usecases/<name>/prompt.md    frontmatter (repo, max_turns, max_budget_usd, timeout_seconds) + prompt body
+    usecases/<name>/prompt.md    frontmatter (repo, max_turns, max_budget_usd, timeout_seconds, plugins) + prompt body
     usecases/<name>/workspace/   optional: files copied into a fresh workspace for each run
     usecases/<name>/setup.sh     optional: runs in the workspace before the agent (installs, scaffolding)
     usecases/<name>/check.sh     optional: deterministic grader, exit 0 = pass, last stdout line may be a 0..1 score
@@ -24,6 +24,7 @@ Python 3.8+ standard library only. Designed for macOS/Linux.
 import argparse
 import csv
 import datetime as dt
+import glob
 import json
 import os
 import random
@@ -56,6 +57,11 @@ ISOLATION_FLAGS = ["--no-chrome", "--strict-mcp-config"]
 # (https://code.claude.com/docs/en/managed-mcp), so no run or judge call could start on such a machine.
 MANAGED_MCP_PATHS = ["/Library/Application Support/ClaudeCode/managed-mcp.json", "/etc/claude-code/managed-mcp.json",
                      "C:\\Program Files\\ClaudeCode\\managed-mcp.json"]
+
+# A run gets only the plugins its use case declares (prompt.md `plugins:`), the judge and smoke none: every other plugin
+# the owner installed, enabled or synced from claude.ai is turned off with --settings, so that its hooks cannot reach a
+# run (security-guidance's Stop hook, for one, reviews the git diff and hands its findings to the agent). Claude Code's
+# built-in plugins stay. See plugin_settings().
 
 # Flags the harness appends to every agent run (the config script holds the preset itself).
 HEADLESS_FLAGS = ["--output-format", "json", "--no-session-persistence"] + ISOLATION_FLAGS + ["--mcp-config", MCP_CONFIG]
@@ -197,6 +203,7 @@ def load_usecase(name):
     ws = os.path.join(d, "workspace")
     return {
         "name": name, "dir": d, "prompt": prompt, "repo": repo,
+        "plugins": [p for p in re.split(r"[,\s]+", meta.get("plugins", "")) if p],
         "workspace_template": ws if os.path.isdir(ws) else None,
         "max_turns": int(fnum(meta.get("max_turns"), DEFAULT_MAX_TURNS)),
         "max_budget_usd": fnum(meta.get("max_budget_usd"), DEFAULT_MAX_BUDGET_USD),
@@ -244,6 +251,37 @@ def refuse_managed_mcp():
     if found:
         sys.exit("%s is deployed on this machine: Claude Code then exits at startup with --strict-mcp-config, which every run "
                  "and the judge use. Run the benchmark on a machine without it." % found[0])
+
+
+def claude_config_dir():
+    return os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+
+
+def read_json_object(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def installed_plugins():
+    data = read_json_object(os.path.join(claude_config_dir(), "plugins", "installed_plugins.json"))
+    plugins = data.get("plugins", data)
+    return set(plugins) if isinstance(plugins, dict) else set()
+
+
+def plugin_settings(keep=()):
+    # The --settings value that enables the plugins in keep and turns off every other one Claude Code could load: those
+    # installed, those named in the user's enabledPlugins, and those synced from claude.ai (plugins/synced/<id>/<name>).
+    config = claude_config_dir()
+    names = installed_plugins() | set(keep)
+    enabled = read_json_object(os.path.join(config, "settings.json")).get("enabledPlugins")
+    if isinstance(enabled, dict):
+        names |= set(enabled)
+    names |= set("%s@synced" % os.path.basename(os.path.dirname(p)) for p in glob.glob(os.path.join(config, "plugins", "synced", "*", "*", "")))
+    return json.dumps({"enabledPlugins": {n: n in keep for n in sorted(names)}})
 
 
 # ----------------------------------------------------------------------------- workspaces
@@ -414,7 +452,7 @@ def run_judge(uc, prompt, result_text, patch, check_summary, judge_model, judge_
         check_summary or "(no deterministic check for this use case)",
     )
     cmd = ["claude", "-p", judge_prompt, "--model", judge_model, "--effort", judge_effort,
-           "--json-schema", JUDGE_SCHEMA] + JUDGE_FLAGS
+           "--json-schema", JUDGE_SCHEMA] + JUDGE_FLAGS + ["--settings", plugin_settings()]
     code, out, err, _, _ = run_claude(cmd, cwd, env, 600)
     data = parse_result_json(out)
     score, cost, raw = "", "", data
@@ -446,7 +484,7 @@ def append_csv(row):
 # ----------------------------------------------------------------------------- commands
 
 def build_agent_cmd(cfg, uc):
-    return (["bash", cfg["path"], "-p", uc["prompt"]] + HEADLESS_FLAGS +
+    return (["bash", cfg["path"], "-p", uc["prompt"]] + HEADLESS_FLAGS + ["--settings", plugin_settings(uc.get("plugins", ()))] +
             ["--max-turns", str(uc["max_turns"]), "--max-budget-usd", str(uc["max_budget_usd"])])
 
 
@@ -525,6 +563,11 @@ def cmd_run(args):
     env = clean_env()
     if not args.dry_run:
         refuse_managed_mcp()
+        installed = installed_plugins()
+        for uc in usecases:
+            absent = [p for p in uc["plugins"] if p not in installed]
+            if absent:
+                sys.exit("use case %s needs the plugin(s) %s, which are not installed (claude plugin install <name>)" % (uc["name"], ", ".join(absent)))
         # Start each MCP server once with --help, so that npm fetches its package now and not inside a timed run.
         for name, srv in sorted(json.loads(read(MCP_CONFIG))["mcpServers"].items()):
             if subprocess.run([srv["command"]] + srv.get("args", []) + ["--help"], env=env, capture_output=True, timeout=600, check=False).returncode:
@@ -574,7 +617,7 @@ def cmd_smoke(args):
         for name, cfg in configs.items():
             if args.config and name not in args.config:
                 continue
-            cmd = ["bash", cfg["path"], "-p", prompt] + HEADLESS_FLAGS + ["--max-turns", "1", "--max-budget-usd", "2"]
+            cmd = ["bash", cfg["path"], "-p", prompt] + HEADLESS_FLAGS + ["--settings", plugin_settings(), "--max-turns", "1", "--max-budget-usd", "2"]
             log("smoke %s: %s" % (name, cfg["desc"]))
             code, out, err, wall, _ = run_claude(cmd, tmp, env, 300)
             data = parse_result_json(out)
@@ -729,6 +772,8 @@ def cmd_list(_args):
         parts.append("repo=%s" % uc["repo"] if uc["repo"] else ("workspace/" if uc["workspace_template"] else "empty dir"))
         parts.append("check.sh" if uc["check"] else "no check")
         parts.append("rubric.md" if uc["rubric"] else "no rubric")
+        if uc["plugins"]:
+            parts.append("plugins: %s" % " ".join(uc["plugins"]))
         print("  %-24s %s" % (n, ", ".join(parts)))
 
 

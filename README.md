@@ -84,17 +84,22 @@ session with that preset, so the configs double as your daily `oclaude-*` launch
 ```
 
 When benchmarking, the harness appends `-p <prompt> --output-format json --no-session-persistence
---no-chrome --strict-mcp-config --mcp-config bench-mcp.json --max-turns N --max-budget-usd X`. Keep
+--no-chrome --strict-mcp-config --mcp-config bench-mcp.json --settings <plugins> --max-turns N
+--max-budget-usd X`. Keep
 model, effort, advisor, subagent env and `--dangerously-skip-permissions` in the config; keep
 everything else out.
 
 A run therefore sees none of the MCP servers or claude.ai connectors you have installed or
 connected, and no Claude in Chrome: only the Chrome DevTools server in `bench-mcp.json`, headless,
-in a throwaway profile. Your `oclaude-*` launchers are unaffected, since they do not add these
-flags.
+in a throwaway profile. It also gets only the plugins its use case declares (`plugins:` in
+`prompt.md`): `--settings` turns off every other plugin you installed, enabled or synced from
+claude.ai, so that no plugin hook acts on a run (security-guidance's Stop hook, for one, reviews
+the git diff and hands its findings to the agent). Claude Code's built-in plugins stay. Your
+`oclaude-*` launchers are unaffected, since they do not add these flags.
 
-Before the first run, `run` starts each server in `bench-mcp.json` once with `--help`, so npm
-fetches its package then and not inside a timed run; it needs node and npx. `run` and `smoke`
+Before the first run, `run` checks that every plugin a selected use case declares is installed,
+and starts each server in `bench-mcp.json` once with `--help`, so npm fetches its package then and
+not inside a timed run; it needs node and npx. `run` and `smoke`
 refuse to start on a machine where an administrator has deployed `managed-mcp.json`, because
 Claude Code then exits at startup with `--strict-mcp-config`.
 
@@ -142,6 +147,7 @@ max_turns: 40            # default 40
 max_budget_usd: 10       # default 10 (client-side estimate; subagents count; can overshoot slightly)
 timeout_seconds: 1800    # harness kills the run after this
 # repo: ~/Projects/my-repo
+# plugins: pr-review-toolkit@claude-plugins-official   # the only plugins the run gets (default none)
 ---
 Add a `/healthz` endpoint that returns 200 and the git SHA. Add a test. Do not touch CI config.
 ```
@@ -164,8 +170,8 @@ byte-identical to the original (`cmp -s`).
 **`rubric.md`** (optional) — what a 10 looks like, what loses points, what is a 0. The judge sees
 the rubric, the prompt, the agent's final message, the workspace diff (truncated at 120k chars) and
 the `check.sh` verdict, and returns a 0-10 score via structured output. The judge runs with
-`--tools ""`, `--no-chrome` and `--strict-mcp-config`, so it has no tools and only reads what it is
-given.
+`--tools ""`, `--no-chrome`, `--strict-mcp-config` and no plugins, so it has no tools and only reads
+what it is given.
 
 For use cases whose output is not code (a review, a document), use `rubric.md` on its own, or a
 `check.sh` that only verifies structural things (file exists, has the expected sections).
@@ -215,8 +221,8 @@ billed per config and every run that has a note.
 - **Caps.** `max_turns` and `max_budget_usd` stop runaway arms; a capped run is recorded with
   `subtype=error_max_turns` / `error_max_budget_usd` and counts as a failure.
 - **Same starting state.** Every run gets a fresh workspace; nothing from a previous run leaks.
-  Claude Code still reads your user-level settings, `~/.claude/CLAUDE.md`, plugins and hooks, which
-  is what a real session sees. If you want a sterile run, add `--bare` to a config — but note it
+  Claude Code still reads your user-level settings, `~/.claude/CLAUDE.md`, skills and hooks, which
+  is what a real session sees; plugins are limited to those the use case declares. If you want a sterile run, add `--bare` to a config — but note it
   also skips CLAUDE.md auto-discovery, hooks and plugins, so only do it in every arm or none.
 - **Judge outside the arms.** Default judge is `opus` at effort `high`. If Opus is also one of your
   main models the harness only notes it; a cleaner choice is a model that is not under test, kept

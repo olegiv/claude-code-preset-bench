@@ -64,7 +64,8 @@ the calibration pass of 2026-10-18 (see the log). Running it needs Docker and, t
 network on the machine running `bench.py`, and Go 1.25 or later with git for the agents.
 
 UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 2700 s) are provisional
-until a calibration pass. Running it needs the pr-review-toolkit plugin, installed and enabled.
+until a calibration pass. Running it needs the pr-review-toolkit plugin installed; runs get it and
+no other plugin.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -116,6 +117,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - Subagent-model confound (Explore and Plan inherit the main model unless FORCE is on) → `light-force` arm.
 - Timed-out runs lose their usage: Claude Code reports cost and turns only on exit → a `harness_timeout` row has neither; timeouts are set at 2x the slowest observed run so that runs finish.
 - The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both. A machine with an administrator's `managed-mcp.json` cannot run that way (Claude Code exits at startup), so `run` and `smoke` refuse it.
+- The owner's plugins reached every run and the judge, hooks included: security-guidance's Stop hook sends the git diff to an LLM review (on Opus, by default) and wakes the agent with its findings, outside the run's cost and turn counts. On UC1 and UC4 it reviewed the agent's own changes; on UC2 it reviewed the planted pull request, which hands any arm three of the ten problems → since 2026-10-18 runs get only the plugins their use case declares (`plugins:` in `prompt.md`), the judge and `smoke` none; Claude Code's built-in plugins stay. The UC1 and UC4 calibrations ran with it.
 - Judge diff limit: 60 000 characters cut off the UC4 calibration diffs of `high` and `normal-max` (83 000–87 000) → raised to 120 000 on 2026-10-18; a longer diff is still cut off, and the rubric tells the judge not to penalise what it cannot see.
 - UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
@@ -424,3 +426,16 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   (working tree against `HEAD`) would then miss the work. `setup.sh` now records the starting
   commit in `.git/ccbench-base`, and `check.sh` hard-fails a run whose `HEAD` moved; a new
   self-test variant, `committed`, scored 1.00 PASS before the fix and is a hard 0.00 after it.
+- 2026-10-18 — UC2 calibration, first run (`light`, no judge, Claude Code 2.1.302): PASS 0.80 in
+  124 s, $1.71, 15 turns, all five toolkit agents completed. It found all ten planted problems, but
+  two valid findings about other problems landed on decoy lines: CSV formula injection at
+  `WriteCSV`'s `Write` call (the `csv-sticky-error` decoy) and `Cleanup` stopping at its first
+  `os.Remove` error (`cleanup-remove`). Its last message answered findings from security-guidance's
+  Stop hook, which had reviewed the planted pull request: the owner's plugins reach runs. Two
+  changes before the other arms: `bench.py` gives runs only the plugins their use case declares
+  (UC2: pr-review-toolkit) and the judge and `smoke` none, turning the others off with
+  `--settings`; probes showed that this unloads installed and claude.ai-synced plugins alike and
+  leaves only Claude Code's four built-in ones. In the pull request, `WriteCSV` now escapes
+  formula-leading cells and `Cleanup` carries on past a file it cannot remove, so the decoy lines
+  invite nothing else (+623/−16 by `git apply --numstat`; only `cleanup-remove`'s windows moved).
+  The calibration restarts on all five arms; this run's row describes the earlier version.

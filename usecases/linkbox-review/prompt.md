@@ -3,6 +3,8 @@
 max_turns: 80
 max_budget_usd: 20
 timeout_seconds: 2700
+# Runs get only this plugin; bench.py turns off every other one
+plugins: pr-review-toolkit@claude-plugins-official
 ---
 This repository is linkbox, a small Go HTTP service (see README.md). The working tree holds an uncommitted pull request on top of the last commit, "Add link previews, pagination and CSV export": `git diff` shows it, and its new files are marked intent-to-add.
 

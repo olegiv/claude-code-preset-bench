@@ -7,7 +7,7 @@ the use case where subagents certainly run, and where the presets differ most in
 
 The agent reviews an uncommitted pull request in `linkbox`, a small Go HTTP service written for this use case
 (MIT, like the repository, so no model has seen it). The pull request, "Add link previews, pagination and CSV
-export", adds about 550 lines in 9 files and carries ten planted problems and five decoys. The agent writes
+export", adds about 600 lines in 9 files and carries ten planted problems and five decoys. The agent writes
 `REVIEW.md`; the check matches its findings against the answer key, and the judge grades the rest.
 
 ## Files
@@ -17,7 +17,7 @@ export", adds about 550 lines in 9 files and carries ten planted problems and fi
 | `prompt.md` | Caps (provisional) and the task |
 | `workspace/` | The base service: about 800 lines of Go with tests; `bench.py` commits it |
 | `feature.patch` | The pull request; `setup.sh` applies it. It is a patch, not Go files, so the repository's code scanning does not flag the planted problems |
-| `setup.sh` | Checks that pr-review-toolkit is installed and enabled, applies the patch with `git apply --intent-to-add`, and records the starting commit in `.git/ccbench-base` |
+| `setup.sh` | Applies the patch with `git apply --intent-to-add` and records the starting commit in `.git/ccbench-base` |
 | `answer-key.json` | The planted problems and decoys, with line windows in the changed files |
 | `check.sh` | The grader |
 | `rubric.md` | The judge's rubric; it holds the answer key |
@@ -25,9 +25,10 @@ export", adds about 550 lines in 9 files and carries ten planted problems and fi
 
 ## Requirements
 
-- The pr-review-toolkit plugin (`pr-review-toolkit@claude-plugins-official`) installed and enabled for the user
-  that runs `bench.py`; `setup.sh` fails before the agent starts otherwise. The calibration used version
-  `ea10b213686c` (updated 2026-10-16); the plugin updates itself, which can change its agents and their models.
+- The pr-review-toolkit plugin (`pr-review-toolkit@claude-plugins-official`) installed for the user that runs
+  `bench.py`. `prompt.md` declares it: `bench.py` refuses to start without it, and enables it, and no other plugin,
+  for the run. The use case was written against version `ea10b213686c` (updated 2026-10-16); the plugin updates
+  itself, which can change its agents and their models.
 - Go 1.27 for the agents, who will build and test the service; git and python3 for the grader.
 
 ## The workspace
@@ -75,7 +76,9 @@ Decoys, where any finding is wrong: the export-cleanup goroutine (it stops on sh
 truncation, the cleanup's `os.Remove` (only prefixed regular files it listed), the deferred `Close` next to a
 checked one, and ignored `csv.Writer.Write` errors (the sticky error is checked after `Flush`). Windows are placed
 so that a fair finding about a problem cannot land on a decoy, and `selftest.sh` asserts that each anchor string
-lies in its window and that no windows overlap.
+lies in its window and that no windows overlap. The code around the decoys leaves nothing else to find there:
+`WriteCSV` escapes cells that a spreadsheet would read as formulas, and `Cleanup` carries on past a file it cannot
+remove (the first calibration run lost 0.20 to valid findings about both on decoy lines).
 
 ## Self-test
 

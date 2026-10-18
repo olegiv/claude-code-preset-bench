@@ -38,6 +38,7 @@ class CliTest(unittest.TestCase):
         make_fake_claude(fake_bin)
         self.env = env_without(*bench.SESSION_VARS)
         self.env["PATH"] = fake_bin + os.pathsep + self.env.get("PATH", "")
+        self.env["CLAUDE_CONFIG_DIR"] = os.path.join(self.tmp, "claude-config")
 
     def bench(self, *args):
         return subprocess.run([sys.executable, os.path.join(self.root, "bench.py")] + list(args), cwd=self.root,
@@ -65,6 +66,11 @@ class CliTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stderr.count("DRY RUN"), len(config_names()))
         self.assertFalse(os.path.exists(self.results("runs.csv")))
+
+    def test_a_dry_run_enables_the_declared_plugin_even_when_it_is_not_installed(self):
+        p = self.bench("run", "--dry-run", "--runs", "1", "--no-judge", "-u", "linkbox-review", "-c", "light")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("""'{"enabledPlugins": {"pr-review-toolkit@claude-plugins-official": true}}'""", p.stderr)
 
     def test_an_unknown_config_is_rejected(self):
         p = self.bench("run", "--dry-run", "-c", "nope")
@@ -167,6 +173,21 @@ class PreflightTest(unittest.TestCase):
                 bench.cmd_run(self.args)
         with open(seen, encoding="utf-8") as f:
             self.assertEqual(f.read(), "-x --help\n")
+
+    def test_run_refuses_a_use_case_whose_plugin_is_not_installed(self):
+        config, usecases = os.path.join(self.tmp, "config"), os.path.join(self.tmp, "usecases")
+        write_file(os.path.join(usecases, "needs", "prompt.md"), "---\nplugins: kit@m\n---\nDo it.\n")
+        args = argparse.Namespace(config=None, usecase=["needs"], dry_run=False, no_judge=True, judge_model=None)
+        good = write_file(os.path.join(self.tmp, "good.sh"), "#!/bin/bash\n", 0o755)
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": config}), mock.patch.object(bench, "USECASES_DIR", usecases), \
+                mock.patch.object(bench, "MANAGED_MCP_PATHS", []), mock.patch.object(bench, "MCP_CONFIG", self.mcp_config(good)), \
+                mock.patch.object(bench, "claude_version", side_effect=RuntimeError("scheduling")):
+            with self.assertRaises(SystemExit) as cm:
+                bench.cmd_run(args)
+            self.assertIn("kit@m", str(cm.exception))
+            write_file(os.path.join(config, "plugins", "installed_plugins.json"), json.dumps({"plugins": {"kit@m": [{}]}}))
+            with self.assertRaises(RuntimeError):
+                bench.cmd_run(args)
 
 
 if __name__ == "__main__":

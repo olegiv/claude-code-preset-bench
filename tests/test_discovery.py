@@ -73,14 +73,15 @@ class UseCaseTest(TempDirTestCase):
         self.assertEqual((uc["max_turns"], uc["max_budget_usd"], uc["timeout_seconds"]),
                          (bench.DEFAULT_MAX_TURNS, bench.DEFAULT_MAX_BUDGET_USD, bench.DEFAULT_TIMEOUT_S))
         self.assertEqual(uc["prompt"], "Fix it.")
-        self.assertEqual((uc["repo"], uc["workspace_template"], uc["check"], uc["rubric"], uc["setup"]),
-                         (None, None, None, None, None))
+        self.assertEqual((uc["repo"], uc["workspace_template"], uc["check"], uc["rubric"], uc["setup"], uc["plugins"]),
+                         (None, None, None, None, None, []))
 
     def test_frontmatter_and_optional_files(self):
-        d = self.usecase("full", "---\nmax_turns: 12\nmax_budget_usd: 2.5\ntimeout_seconds: 60\n---\nDo it.\n",
+        d = self.usecase("full", "---\nmax_turns: 12\nmax_budget_usd: 2.5\ntimeout_seconds: 60\nplugins: a@m, b@m c@m\n---\nDo it.\n",
                          files=("check.sh", "rubric.md", "setup.sh", "workspace/a.txt"))
         uc = bench.load_usecase("full")
         self.assertEqual((uc["max_turns"], uc["max_budget_usd"], uc["timeout_seconds"]), (12, 2.5, 60))
+        self.assertEqual(uc["plugins"], ["a@m", "b@m", "c@m"])
         self.assertEqual((uc["check"], uc["rubric"], uc["setup"]),
                          tuple(os.path.join(d, fn) for fn in ("check.sh", "rubric.md", "setup.sh")))
         self.assertEqual(uc["workspace_template"], os.path.join(d, "workspace"))

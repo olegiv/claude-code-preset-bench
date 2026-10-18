@@ -368,10 +368,10 @@ index 295bf13..b522630 100644
 +}
 diff --git a/internal/export/export.go b/internal/export/export.go
 new file mode 100644
-index 0000000..9db5f1a
+index 0000000..61328c9
 --- /dev/null
 +++ b/internal/export/export.go
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,96 @@
 +// Package export writes links to CSV files.
 +package export
 +
@@ -412,11 +412,11 @@ index 0000000..9db5f1a
 +	for _, l := range links {
 +		_ = w.Write([]string{
 +			l.ID,
-+			l.URL,
-+			l.Title,
-+			strings.Join(l.Tags, " "),
++			cell(l.URL),
++			cell(l.Title),
++			cell(strings.Join(l.Tags, " ")),
 +			l.CreatedAt.Format(time.RFC3339),
-+			l.PreviewTitle,
++			cell(l.PreviewTitle),
 +		})
 +	}
 +	// csv.Writer keeps the first write error and reports it here, so the writes above need no checks.
@@ -430,13 +430,15 @@ index 0000000..9db5f1a
 +	return path, nil
 +}
 +
-+// Cleanup removes the export files in dir that are older than maxAge and returns how many it removed.
++// Cleanup removes the export files in dir that are older than maxAge and returns how many it removed. A file it
++// cannot remove does not stop it: it carries on and returns the errors together.
 +func Cleanup(dir string, maxAge time.Duration, now time.Time) (int, error) {
 +	entries, err := os.ReadDir(dir)
 +	if err != nil {
 +		return 0, err
 +	}
 +	removed := 0
++	var errs []error
 +	for _, e := range entries {
 +		if !e.Type().IsRegular() || !strings.HasPrefix(e.Name(), filePrefix) {
 +			continue
@@ -448,19 +450,30 @@ index 0000000..9db5f1a
 +		if now.Sub(info.ModTime()) < maxAge {
 +			continue
 +		}
-+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
-+			return removed, err
++		switch err := os.Remove(filepath.Join(dir, e.Name())); {
++		case err == nil:
++			removed++
++		case !errors.Is(err, os.ErrNotExist): // a file removed since ReadDir listed it is no error
++			errs = append(errs, err)
 +		}
-+		removed++
 +	}
-+	return removed, nil
++	return removed, errors.Join(errs...)
++}
++
++// cell keeps a spreadsheet from reading a value as a formula (CSV injection): a value that starts with =, +, -, @,
++// a tab or a carriage return gets a leading single quote.
++func cell(s string) string {
++	if s != "" && strings.ContainsAny(s[:1], "=+-@\t\r") {
++		return "'" + s
++	}
++	return s
 +}
 diff --git a/internal/export/export_test.go b/internal/export/export_test.go
 new file mode 100644
-index 0000000..406d241
+index 0000000..9ef25ea
 --- /dev/null
 +++ b/internal/export/export_test.go
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,93 @@
 +package export
 +
 +import (
@@ -498,6 +511,26 @@ index 0000000..406d241
 +		t.Fatalf("%d rows, want a header and 2 links", len(rows))
 +	}
 +	if rows[1][2] != "B, with a comma" || rows[1][3] != "go web" || rows[2][5] != "A page" {
++		t.Errorf("rows = %q", rows)
++	}
++}
++
++func TestWriteCSVEscapesFormulas(t *testing.T) {
++	links := []*store.Link{{ID: "l1", URL: "https://example.com/", Title: "=1+1", Tags: []string{"-x"}, PreviewTitle: "@sum"}}
++	path, err := WriteCSV(t.TempDir(), "mine.csv", links)
++	if err != nil {
++		t.Fatal(err)
++	}
++	f, err := os.Open(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	rows, err := csv.NewReader(f).ReadAll()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(rows) != 2 || rows[1][1] != "https://example.com/" || rows[1][2] != "'=1+1" || rows[1][3] != "'-x" || rows[1][5] != "'@sum" {
 +		t.Errorf("rows = %q", rows)
 +	}
 +}

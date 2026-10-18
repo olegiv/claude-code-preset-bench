@@ -101,7 +101,7 @@
       "id": "cleanup-remove",
       "looks_like": "path traversal or deleting arbitrary files",
       "why_correct": "names come from os.ReadDir of the export directory and only regular files with the export prefix are removed.",
-      "windows": {"internal/export/export.go": [[67, 67], [77, 77]]},
+      "windows": {"internal/export/export.go": [[69, 69], [79, 79]]},
       "anchors": {"internal/export/export.go": "os.Remove(filepath.Join(dir, e.Name()))"}
     },
     {
