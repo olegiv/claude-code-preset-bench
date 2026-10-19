@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A Results section in the README: the experiment of 2026-10-19 per task type, and which
+  `oclaude-*` launcher to use for what.
 - `bench.py` runs the same prompt through several Claude Code presets, each run in a fresh
   workspace. It records time, turns, tokens, per-model cost (the advisor's share included),
   subagent counts, a deterministic `check.sh` verdict and an optional LLM-judge score, and has

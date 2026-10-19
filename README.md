@@ -140,6 +140,39 @@ Things to know:
 - `--advisor` and `--max-turns` are accepted in `-p` mode although `claude --help` does not list them
   (verified on 2.1.295).
 
+## Results
+
+The experiment of 2026-10-19 ran the four use cases three times on every preset, with the judge
+(Opus at effort high), on Claude Code 2.1.303. `PLAN.md`'s log has the full table and its limits,
+and `results/summary.md` the numbers; the six runs a usage limit cut off are left out. Every
+remaining run passed its check, except that UC1 `normal-max` hit its 100-turn cap twice with working
+code. Median judge score and cost per run:
+
+| Task type (use case) | `high` | `normal-max` | `normal` | `light` | `light-force` |
+|---|---|---|---|---|---|
+| Fix in a large real repository (UC1) | 9.0 · $6.64 | capped · $9.65 | 9.0 · $1.70 | **9.0 · $0.59** | 8.5 · $0.70 |
+| Pull-request review (UC2) | 9.0 · $13.90 | 8.5 · $12.31 | 9.0 · $2.65 | 8.5 · $1.66 | **9.0 · $0.78** |
+| Architecture decision record (UC3) | 9.0 · $2.18 | 9.0 · $1.84 | 9.0 · $0.37 | **8.0 · $0.16** | 7.5 · $0.17 |
+| Greenfield build (UC4) | 9.0 · $11.83 | 9.0 · $15.74 | 8.8 · $2.27 | **8.0 · $0.63** | 8.0 · $0.75 |
+
+Bold marks the winner by the decision rule (`PLAN.md`): no worse on passes, within one judge point
+of the best, and the cheapest; on UC1 and UC4 `light` and `light-force` are within 25% of each
+other, a tie. What that means for the launchers:
+
+- **`oclaude-light` or `oclaude-light-force` for routine work** (fixes, reviews, documents, small
+  builds): every check passed, judge 7.5 to 9, about $0.65 a run. `light-force`, with every
+  subagent on Haiku, stayed within half a point of `light`: ahead on the review, behind on UC1 and
+  the ADR.
+- **`oclaude-normal` when the result matters more than the cost:** judge 9.0 on UC1 to UC3 and 8.8
+  on UC4, about $1.70 a run.
+- **`oclaude-high` and `oclaude-normal-max` showed no gain:** they beat `normal`'s median only on
+  UC4, by 0.2, at five times the cost, and `normal-max` was the slowest preset everywhere.
+
+The limits: six cells hold two runs, not three; the judge is Opus, the main model of three
+presets; and with scores between 7.5 and 9, every use case is near its ceiling, so these results
+do not show where the expensive presets would pay off. They hold for these four tasks and these
+models; rerun the experiment when the models or the presets change.
+
 ## Adding a use case
 
 Copy `usecases/_template/` to `usecases/<name>/` and edit:
