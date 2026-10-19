@@ -697,9 +697,12 @@ def cmd_summarize(args):
     if getattr(args, "since", None):
         rows = [r for r in rows if r["timestamp"] >= args.since]
     # Runs the API refused or cut off (a usage limit, a server error) say nothing about the preset. Rows written before
-    # these subtypes existed show it as an error result with subtype success: in results/runs.csv, the six runs of
-    # 2026-10-19 that the weekly usage limit cut off (HTTP 429 in their raw JSON).
-    refused = [r for r in rows if r.get("subtype") in ("usage_limit", "api_error") or (r.get("subtype") == "success" and r.get("is_error") == "True")]
+    # these subtypes existed recorded them as an error result with subtype success, like a preset-caused rejection, so
+    # only the ones known to be refused count: the six runs of 2026-10-19 the weekly usage limit cut off (HTTP 429).
+    legacy_refused = {"20261019-143535-meowdoku-normal-max-r1", "20261019-151600-meowdoku-normal-r1",
+                      "20261019-151606-lazygit-conflict-markers-high-r2", "20261019-151640-lazygit-conflict-markers-light-force-r2",
+                      "20261019-151712-lazygit-conflict-markers-light-r2", "20261019-151745-lazygit-conflict-markers-normal-max-r2"}
+    refused = [r for r in rows if r.get("subtype") in ("usage_limit", "api_error") or r["run_id"] in legacy_refused]
     rows = [r for r in rows if r not in refused]
     if not rows:
         sys.exit("no rows to summarize" + (" (%d left out: the API refused or cut them off)" % len(refused) if refused else ""))

@@ -236,8 +236,12 @@ class ApiErrorTest(RepoTest):
         refused = [
             {"run_id": "u1", "timestamp": "2026-10-15T12:00:00", "usecase": "uc", "config": "light", "subtype": "usage_limit",
              "is_error": "True", "wall_s": "3", "total_cost_usd": "0", "check_pass": "0"},
-            {"run_id": "u2", "timestamp": "2026-10-15T12:05:00", "usecase": "uc", "config": "light", "subtype": "success",
-             "is_error": "True", "wall_s": "2400", "total_cost_usd": "6.3", "check_pass": "0"},
+            # Before the new subtypes, the six runs the weekly limit cut off were recorded like this: listed, left out.
+            {"run_id": "20261019-151606-lazygit-conflict-markers-high-r2", "timestamp": "2026-10-15T12:05:00", "usecase": "uc",
+             "config": "light", "subtype": "success", "is_error": "True", "wall_s": "3", "total_cost_usd": "0", "check_pass": "0"},
+            # Another old row with that signature might be a preset-caused rejection: it stays in.
+            {"run_id": "u2", "timestamp": "2026-10-15T12:07:00", "usecase": "uc", "config": "light-force", "subtype": "success",
+             "is_error": "True", "wall_s": "40", "total_cost_usd": "0.1", "check_pass": "0"},
             {"run_id": "u3", "timestamp": "2026-10-15T12:10:00", "usecase": "uc", "config": "normal", "subtype": "api_error",
              "is_error": "True", "wall_s": "2", "check_pass": "0"},
         ]
@@ -248,7 +252,9 @@ class ApiErrorTest(RepoTest):
             summary = f.read()
         self.assertIn("| uc | light | 2 | 1 | 50% | 9.0 | 20.0 | 10.0-30.0 | $0.300 | $0.000 | $0.600 | 4.0 | 100 |", summary)
         self.assertIn("| uc | normal | 1 | 0 | 100% | 8.0 | 20.0 | 20.0-20.0 | $0.500 | - | $0.500 | 6.0 | - |", summary)
-        self.assertIn("Left out: 3 run(s) the API refused or cut off (a usage limit or another API error): u1, u2, u3.", summary)
+        self.assertIn("| uc | light-force | 1 | 0 | 0% |", summary)
+        self.assertIn("Left out: 3 run(s) the API refused or cut off (a usage limit or another API error): u1, "
+                      "20261019-151606-lazygit-conflict-markers-high-r2, u3.", summary)
         self.assertIn("left out: 3 run(s)", p.stdout)
 
 class PreflightTest(unittest.TestCase):

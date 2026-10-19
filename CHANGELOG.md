@@ -85,8 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A run the API refuses or cuts off for a usage limit (HTTP 429) or a server error (5xx) is no
   longer counted as the preset's failure. `bench.py` records it as `usage_limit` or `api_error`,
-  with the message in `notes` and without grading it; `summarize` leaves those runs out, older
-  rows with the same signature included, and lists them; `run` stops at the first usage limit
+  with the message in `notes` and without grading it; `summarize` leaves those runs out, and the
+  six earlier runs the weekly limit cut off, and lists them; `run` stops at the first usage limit
   instead of failing every remaining run within seconds, and exits non-zero after a server error.
   Any other rejection, such as a request too large, is recorded as `api_rejected` and still
   counts as the preset's failure.
