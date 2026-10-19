@@ -83,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A run the API refuses or cuts off, at a usage limit for one, is no longer counted as the
+  preset's failure. `bench.py` records it as `usage_limit` (HTTP 429) or `api_error`, with the
+  message in `notes` and without grading it; `summarize` leaves those runs out, older rows with the same signature
+  included, and lists them; and `run` stops at the first usage limit instead of failing every
+  remaining run within seconds.
 - `summarize` counts every errored run (capped, timed out, a harness fault) as a failure, also
   when the check passed what it left in the workspace, and shows a cost sum as unknown (`-`)
   when a run in the group reported no cost, instead of counting it as $0.

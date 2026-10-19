@@ -187,7 +187,7 @@ Each row in `results/runs.csv`:
 
 | column | meaning |
 |---|---|
-| `subtype` | `success`, `error_max_turns`, `error_max_budget_usd`, `error_during_execution`, or harness values `harness_timeout`, `no_json`, `harness_error` |
+| `subtype` | `success`, `error_max_turns`, `error_max_budget_usd`, `error_during_execution`, or harness values `harness_timeout`, `no_json`, `harness_error`, and `usage_limit` or `api_error` when the API answered with an error instead of the agent's result |
 | `wall_s` | wall clock measured by the harness around the whole CLI process |
 | `duration_ms`, `duration_api_ms` | Claude Code's own run time and time spent waiting on the API |
 | `num_turns` | assistant turns |
@@ -225,6 +225,10 @@ billed per config and every run that has a note.
   arms, which is what matters here.
 - **Caps.** `max_turns` and `max_budget_usd` stop runaway arms; a capped run is recorded with
   `subtype=error_max_turns` / `error_max_budget_usd` and counts as a failure.
+- **Usage limits.** A run the API refuses or cuts off is recorded as `usage_limit` (HTTP 429) or
+  `api_error`, with the message in `notes`, without a check or a judge call, and `summarize` leaves
+  it out and lists it: it says nothing about the preset. `run` stops at the first usage limit, since every later run would fail
+  the same way; rerun the rest once the limit resets.
 - **Same starting state.** Every run gets a fresh workspace; nothing from a previous run leaks.
   Claude Code still reads your user-level settings, `~/.claude/CLAUDE.md`, skills and hooks, which
   is what a real session sees; plugins are limited to those the use case declares. If you want a sterile run, add `--bare` to a config — but note it

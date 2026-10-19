@@ -514,6 +514,12 @@ def one_run(cfg, uc, rep, args, env, version):
         result_text = (data or {}).get("result") or ""
         write(raw_txt, result_text if isinstance(result_text, str) else json.dumps(result_text))
         row.update(extract_metrics(data, cfg["advisor"]))
+        if data and data.get("is_error") is True and row.get("subtype") == "success":
+            # The API answered with an error instead of the agent's result, or cut the agent off: a usage limit (429) or
+            # another API error, not the preset's doing. summarize leaves these runs out.
+            row["subtype"] = "usage_limit" if data.get("api_error_status") == 429 else "api_error"
+            notes.append("API error %s: %s" % (data.get("api_error_status"), str(data.get("result"))[:200].replace("\n", " ")))
+        graded = row.get("subtype") not in ("usage_limit", "api_error")  # a refused run gets no check and no judge call
         if timed_out:
             row["subtype"] = row.get("subtype") or "harness_timeout"
             notes.append("timed out after %ss" % uc["timeout_seconds"])
@@ -526,12 +532,12 @@ def one_run(cfg, uc, rep, args, env, version):
         write(os.path.join(RAW_DIR, run_id + ".diff.patch"), patch)
         row["files_changed"] = nfiles
         check_summary = ""
-        if uc["check"]:
+        if uc["check"] and graded:
             passed, score, tail = run_check(uc, ws, env, run_id, cfg["name"], raw_json, raw_txt)
             row["check_pass"], row["check_score"] = passed, score
             check_summary = "%s (score %.2f): %s" % ("PASS" if passed else "FAIL", score, tail)
             log("  check: %s" % check_summary)
-        if uc["rubric"] and not args.no_judge:
+        if uc["rubric"] and not args.no_judge and graded:
             score, jcost, jraw = run_judge(uc, uc["prompt"], result_text, patch, check_summary,
                                            args.judge_model, args.judge_effort, env, ws)
             row["judge_score"], row["judge_cost_usd"], row["judge_model"] = score, jcost, args.judge_model
@@ -597,14 +603,22 @@ def cmd_run(args):
     est = len(plan)
     log("%d runs planned: %d config(s) x %d use case(s) x %d repeat(s), order=%s" % (
         est, len(names), len(usecases), args.runs, args.order))
+    stopped = None
     for i, (cfg, uc, rep) in enumerate(plan, 1):
         log("--- %d/%d" % (i, est))
-        one_run(cfg, uc, rep, args, env, version)
+        row = one_run(cfg, uc, rep, args, env, version) or {}  # a dry run records nothing
+        if row.get("subtype") == "usage_limit":
+            # Every later run would fail the same way within seconds.
+            stopped = "stopped at a usage limit after %d of %d runs (%s); rerun the rest once it resets" % (i, est, row.get("notes"))
+            log("STOPPED: " + stopped)
+            break
         if args.pause and i < est:
             time.sleep(args.pause)
     if not args.dry_run:
         log("done. results in %s" % CSV_PATH)
         cmd_summarize(args)
+    if stopped:
+        sys.exit(stopped)
 
 
 def cmd_smoke(args):
@@ -677,8 +691,12 @@ def cmd_summarize(args):
         rows = list(csv.DictReader(f))
     if getattr(args, "since", None):
         rows = [r for r in rows if r["timestamp"] >= args.since]
+    # Runs the API refused or cut off (a usage limit, another API error) say nothing about the preset. Rows written
+    # before these subtypes existed show it as an error result with subtype success.
+    refused = [r for r in rows if r.get("subtype") in ("usage_limit", "api_error") or (r.get("subtype") == "success" and r.get("is_error") == "True")]
+    rows = [r for r in rows if r not in refused]
     if not rows:
-        sys.exit("no rows to summarize")
+        sys.exit("no rows to summarize" + (" (%d left out: the API refused or cut them off)" % len(refused) if refused else ""))
 
     def group(keyf):
         g = {}
@@ -735,6 +753,9 @@ def cmd_summarize(args):
     md = []
     md.append("# Benchmark summary\n")
     md.append("Generated %s from %d runs in `results/runs.csv`.\n" % (dt.datetime.now().strftime("%Y-%m-%d %H:%M"), len(rows)))
+    if refused:
+        md.append("Left out: %d run(s) the API refused or cut off (a usage limit or another API error): %s.\n" % (
+            len(refused), ", ".join(r["run_id"] for r in refused)))
     md.append("Medians unless stated. `pass` = deterministic check pass rate (errored runs count as failures), `judge` = median LLM-judge score (0-10), "
               "`cost` = Claude Code's client-side estimate (`total_cost_usd`, all models incl. subagents and advisor, excludes the judge), "
               "`advisor` = the part of that cost billed to the advisor model, `cache read` = median cache_read_input_tokens.\n")
@@ -760,6 +781,8 @@ def cmd_summarize(args):
     print(render("Per use case", headers, table))
     print()
     print(render("Per config (pooled)", headers, overall))
+    if refused:
+        print("\nleft out: %d run(s) the API refused or cut off" % len(refused))
     print("\nsummary written to %s" % SUMMARY_PATH)
 
 
