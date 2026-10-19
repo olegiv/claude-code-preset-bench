@@ -119,7 +119,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - Runaway runs → `max_turns`, `max_budget_usd`, harness timeout; capped runs count as failures.
 - Effort confound → `normal-max` arm (`normal` at max).
 - Subagent-model confound (Explore and Plan inherit the main model unless FORCE is on) → `light-force` arm.
-- Usage limits: the plan's weekly limit cut off six runs of the 2026-10-19 experiment (HTTP 429) → such runs are recorded as `usage_limit` (other API errors as `api_error`), `summarize` leaves them out and lists them, and `run` stops at the first usage limit.
+- Usage limits: the plan's weekly limit cut off six runs of the 2026-10-19 experiment (HTTP 429) → such runs are recorded as `usage_limit` (server errors, 5xx, as `api_error`), `summarize` leaves them out and lists them, and `run` stops at the first usage limit; any other API rejection (`api_rejected`, such as a request too large) may be the preset's doing and still counts as its failure.
 - Timed-out runs lose their usage: Claude Code reports cost and turns only on exit → a `harness_timeout` row has neither; timeouts are set at 2x the slowest observed run so that runs finish.
 - The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both. A machine with an administrator's `managed-mcp.json` cannot run that way (Claude Code exits at startup), so `run` and `smoke` refuse it.
 - The owner's plugins reached every run and the judge, hooks included: security-guidance's Stop hook sends the git diff to an LLM review (on Opus, by default) and wakes the agent with its findings, outside the run's cost and turn counts. On UC1 and UC4 it reviewed the agent's own changes; on UC2 it reviewed the planted pull request, which hands any arm three of the ten problems → since 2026-10-18 runs get only the plugins their use case declares (`plugins:` in `prompt.md`), the judge and `smoke` none; Claude Code's built-in plugins stay. The UC1 and UC4 calibrations ran with it.
@@ -167,7 +167,8 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   entry of that date). By the decision rule, the cheap arms win every use case: `light` on UC3,
   `light-force` on UC2, and the two tied on UC1 and UC4, at $0.63–0.75 a run on average. `normal`
   is the quality-per-cost choice (judge median 9.0 on UC1–UC3, 8.8 on UC4, $1.70 a run). `high`
-  and `normal-max` never beat `normal`'s median and cost five times as much.
+  and `normal-max` beat `normal`'s median only on UC4, by 0.2 (9.0 to 8.8), and cost five times as
+  much.
 
 ## Log
 

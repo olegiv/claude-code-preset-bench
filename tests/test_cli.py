@@ -36,9 +36,20 @@ if [ "${1:-}" = "--version" ]; then echo "0.0.0 (fake)"; exit 0; fi
 printf '{"type": "result", "subtype": "success", "is_error": true, "api_error_status": %s, "num_turns": 1, "total_cost_usd": 0, "result": "refused", "modelUsage": {}}\\n' "$FAKE_STATUS"
 """
 
+# The first agent call fails with a server error (marked by creating FAKE_SEEN), every later one succeeds.
+FAKE_FLAKY_CLAUDE = """#!/bin/bash
+if [ "${1:-}" = "--version" ]; then echo "0.0.0 (fake)"; exit 0; fi
+if [ ! -e "$FAKE_SEEN" ]; then
+  touch "$FAKE_SEEN"
+  printf '{"type": "result", "subtype": "success", "is_error": true, "api_error_status": 500, "num_turns": 1, "result": "overloaded", "modelUsage": {}}\\n'
+else
+  printf '{"type": "result", "subtype": "success", "is_error": false, "num_turns": 1, "total_cost_usd": 0.01, "result": "done", "modelUsage": {}}\\n'
+fi
+"""
 
-class CliTest(unittest.TestCase):
-    """list, run --dry-run, summarize and argument errors."""
+
+class RepoTest(unittest.TestCase):
+    """A temporary copy of the repository with a fake claude on PATH."""
 
     def setUp(self):
         self.tmp = temp_dir(self)
@@ -67,6 +78,10 @@ class CliTest(unittest.TestCase):
             w.writeheader()
             for row in rows:
                 w.writerow({k: row.get(k, "") for k in bench.CSV_FIELDS})
+
+
+class CliTest(RepoTest):
+    """list, run --dry-run, summarize and argument errors."""
 
     def test_list_shows_the_configs_and_use_cases(self):
         p = self.bench("list")
@@ -139,51 +154,6 @@ class CliTest(unittest.TestCase):
         self.assertIn("| nocheck | max | 1 | 0 | - | - | 5.0 | 5.0-5.0 | $0.100 | - | $0.100 | - | - |", summary)
         self.assertIn("| ALL | max | 4 | 2 | 33% | - | 12.5 | 1.0-3600.0 | $0.200 | - | - | - | - |", summary)
 
-    def refused_run(self, status):
-        write_file(os.path.join(self.root, "bench-mcp.json"), json.dumps({"mcpServers": {"noop": {"command": "true", "args": []}}}))
-        write_file(os.path.join(self.tmp, "bin", "claude"), FAKE_REFUSED_CLAUDE, 0o755)
-        self.env["FAKE_STATUS"] = str(status)
-        p = self.bench("run", "--runs", "1", "-c", "light", "normal", "-u", "example-fix-tests")
-        with open(self.results("runs.csv"), newline="", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-        # A refused run is not graded: no check, and no judge call (which would be refused too).
-        self.assertNotIn("  check:", p.stderr)
-        self.assertNotIn("  judge:", p.stderr)
-        self.assertEqual([(r["check_pass"], r["judge_score"]) for r in rows], [("", "")] * len(rows))
-        return p, rows
-
-    def test_a_usage_limit_is_recorded_as_such_and_stops_the_run(self):
-        p, rows = self.refused_run(429)
-        self.assertNotEqual(p.returncode, 0)
-        self.assertIn("stopped at a usage limit after 1 of 2 runs", p.stderr)
-        self.assertEqual([r["subtype"] for r in rows], ["usage_limit"])
-        self.assertIn("API error 429: refused", rows[0]["notes"])
-
-    def test_another_api_error_is_recorded_and_the_run_goes_on(self):
-        p, rows = self.refused_run(500)
-        self.assertEqual([r["subtype"] for r in rows], ["api_error", "api_error"])
-        self.assertNotIn("stopped at a usage limit", p.stderr)
-        self.assertIn("no rows to summarize (2 left out: the API refused or cut them off)", p.stderr)
-
-    def test_summarize_leaves_out_runs_the_api_refused_or_cut_off(self):
-        refused = [
-            {"run_id": "u1", "timestamp": "2026-10-15T12:00:00", "usecase": "uc", "config": "light", "subtype": "usage_limit",
-             "is_error": "True", "wall_s": "3", "total_cost_usd": "0", "check_pass": "0"},
-            {"run_id": "u2", "timestamp": "2026-10-15T12:05:00", "usecase": "uc", "config": "light", "subtype": "success",
-             "is_error": "True", "wall_s": "2400", "total_cost_usd": "6.3", "check_pass": "0"},
-            {"run_id": "u3", "timestamp": "2026-10-15T12:10:00", "usecase": "uc", "config": "normal", "subtype": "api_error",
-             "is_error": "True", "wall_s": "2", "check_pass": "0"},
-        ]
-        self.write_runs(ROWS + refused)
-        p = self.bench("summarize")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        with open(self.results("summary.md"), encoding="utf-8") as f:
-            summary = f.read()
-        self.assertIn("| uc | light | 2 | 1 | 50% | 9.0 | 20.0 | 10.0-30.0 | $0.300 | $0.000 | $0.600 | 4.0 | 100 |", summary)
-        self.assertIn("| uc | normal | 1 | 0 | 100% | 8.0 | 20.0 | 20.0-20.0 | $0.500 | - | $0.500 | 6.0 | - |", summary)
-        self.assertIn("Left out: 3 run(s) the API refused or cut off (a usage limit or another API error): u1, u2, u3.", summary)
-        self.assertIn("left out: 3 run(s)", p.stdout)
-
     def test_summarize_counts_a_harness_error_of_a_checked_use_case_without_check_results(self):
         self.write_runs([
             {"run_id": "h1", "timestamp": "2026-10-15T10:00:00", "usecase": "example-fix-tests", "config": "max",
@@ -206,6 +176,80 @@ class CliTest(unittest.TestCase):
         self.assertIn("| uc | normal |", summary)
         self.assertNotIn("| uc | light |", summary)
 
+
+class ApiErrorTest(RepoTest):
+    """Runs the API refused or cut off: what run records and stops, and what summarize leaves out."""
+
+    def refused_run(self, fake, *args):
+        write_file(os.path.join(self.root, "bench-mcp.json"), json.dumps({"mcpServers": {"noop": {"command": "true", "args": []}}}))
+        write_file(os.path.join(self.tmp, "bin", "claude"), fake, 0o755)
+        p = self.bench("run", "--runs", "1", "-c", "light", "normal", "-u", "example-fix-tests", *args)
+        with open(self.results("runs.csv"), newline="", encoding="utf-8") as f:
+            return p, list(csv.DictReader(f))
+
+    def assert_not_graded(self, p, rows):
+        # A run the API refused gets no check and no judge call (which would be refused too).
+        self.assertNotIn("  check:", p.stderr)
+        self.assertNotIn("  judge:", p.stderr)
+        self.assertEqual([(r["check_pass"], r["judge_score"]) for r in rows], [("", "")] * len(rows))
+
+    def test_a_usage_limit_is_recorded_as_such_and_stops_the_run(self):
+        self.env["FAKE_STATUS"] = "429"
+        p, rows = self.refused_run(FAKE_REFUSED_CLAUDE)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("stopped at a usage limit after 1 of 2 runs", p.stderr)
+        self.assertEqual([r["subtype"] for r in rows], ["usage_limit"])
+        self.assertIn("API error 429: refused", rows[0]["notes"])
+        self.assert_not_graded(p, rows)
+
+    def test_a_server_error_is_recorded_and_left_out_and_the_run_goes_on(self):
+        self.env["FAKE_STATUS"] = "500"
+        p, rows = self.refused_run(FAKE_REFUSED_CLAUDE)
+        self.assertEqual([r["subtype"] for r in rows], ["api_error", "api_error"])
+        self.assertNotIn("stopped at a usage limit", p.stderr)
+        self.assertIn("no rows to summarize (2 left out: the API refused or cut them off)", p.stderr)
+        self.assert_not_graded(p, rows)
+
+    def test_another_rejection_counts_as_the_presets_failure(self):
+        # A 4xx, such as a request too large, may be the preset's doing: it is graded and stays in the results.
+        self.env["FAKE_STATUS"] = "400"
+        p, rows = self.refused_run(FAKE_REFUSED_CLAUDE, "--no-judge")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual([r["subtype"] for r in rows], ["api_rejected", "api_rejected"])
+        self.assertIn("  check:", p.stderr)
+        self.assertEqual([r["check_pass"] for r in rows], ["0", "0"])
+        with open(self.results("summary.md"), encoding="utf-8") as f:
+            summary = f.read()
+        self.assertNotIn("Left out", summary)
+        self.assertIn("| example-fix-tests | light | 1 | 1 | 0% |", summary)
+
+    def test_a_run_with_a_server_error_exits_nonzero_after_summarizing_the_rest(self):
+        self.env["FAKE_SEEN"] = os.path.join(self.tmp, "seen")
+        p, rows = self.refused_run(FAKE_FLAKY_CLAUDE, "--no-judge")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("1 run(s) failed with a server error and are left out of the results; rerun them", p.stderr)
+        self.assertEqual([r["subtype"] for r in rows], ["api_error", "success"])
+        with open(self.results("summary.md"), encoding="utf-8") as f:
+            self.assertIn("Left out: 1 run(s)", f.read())
+
+    def test_summarize_leaves_out_runs_the_api_refused_or_cut_off(self):
+        refused = [
+            {"run_id": "u1", "timestamp": "2026-10-15T12:00:00", "usecase": "uc", "config": "light", "subtype": "usage_limit",
+             "is_error": "True", "wall_s": "3", "total_cost_usd": "0", "check_pass": "0"},
+            {"run_id": "u2", "timestamp": "2026-10-15T12:05:00", "usecase": "uc", "config": "light", "subtype": "success",
+             "is_error": "True", "wall_s": "2400", "total_cost_usd": "6.3", "check_pass": "0"},
+            {"run_id": "u3", "timestamp": "2026-10-15T12:10:00", "usecase": "uc", "config": "normal", "subtype": "api_error",
+             "is_error": "True", "wall_s": "2", "check_pass": "0"},
+        ]
+        self.write_runs(ROWS + refused)
+        p = self.bench("summarize")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(self.results("summary.md"), encoding="utf-8") as f:
+            summary = f.read()
+        self.assertIn("| uc | light | 2 | 1 | 50% | 9.0 | 20.0 | 10.0-30.0 | $0.300 | $0.000 | $0.600 | 4.0 | 100 |", summary)
+        self.assertIn("| uc | normal | 1 | 0 | 100% | 8.0 | 20.0 | 20.0-20.0 | $0.500 | - | $0.500 | 6.0 | - |", summary)
+        self.assertIn("Left out: 3 run(s) the API refused or cut off (a usage limit or another API error): u1, u2, u3.", summary)
+        self.assertIn("left out: 3 run(s)", p.stdout)
 
 class PreflightTest(unittest.TestCase):
     """What run and smoke check before any model call, run in-process with the checks' inputs patched."""

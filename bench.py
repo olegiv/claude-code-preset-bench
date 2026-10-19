@@ -515,9 +515,11 @@ def one_run(cfg, uc, rep, args, env, version):
         write(raw_txt, result_text if isinstance(result_text, str) else json.dumps(result_text))
         row.update(extract_metrics(data, cfg["advisor"]))
         if data and data.get("is_error") is True and row.get("subtype") == "success":
-            # The API answered with an error instead of the agent's result, or cut the agent off: a usage limit (429) or
-            # another API error, not the preset's doing. summarize leaves these runs out.
-            row["subtype"] = "usage_limit" if data.get("api_error_status") == 429 else "api_error"
+            # The API answered with an error instead of the agent's result, or cut the agent off. A usage limit (429) or a
+            # server error (5xx) is not the preset's doing, and summarize leaves those runs out; any other rejection, such
+            # as a request too large (4xx), may be, so it stays in the results as the preset's failure.
+            status = data.get("api_error_status")
+            row["subtype"] = "usage_limit" if status == 429 else "api_error" if isinstance(status, int) and status >= 500 else "api_rejected"
             notes.append("API error %s: %s" % (data.get("api_error_status"), str(data.get("result"))[:200].replace("\n", " ")))
         graded = row.get("subtype") not in ("usage_limit", "api_error")  # a refused run gets no check and no judge call
         if timed_out:
@@ -603,10 +605,11 @@ def cmd_run(args):
     est = len(plan)
     log("%d runs planned: %d config(s) x %d use case(s) x %d repeat(s), order=%s" % (
         est, len(names), len(usecases), args.runs, args.order))
-    stopped = None
+    stopped, server_errors = None, 0
     for i, (cfg, uc, rep) in enumerate(plan, 1):
         log("--- %d/%d" % (i, est))
         row = one_run(cfg, uc, rep, args, env, version) or {}  # a dry run records nothing
+        server_errors += row.get("subtype") == "api_error"
         if row.get("subtype") == "usage_limit":
             # Every later run would fail the same way within seconds.
             stopped = "stopped at a usage limit after %d of %d runs (%s); rerun the rest once it resets" % (i, est, row.get("notes"))
@@ -619,6 +622,8 @@ def cmd_run(args):
         cmd_summarize(args)
     if stopped:
         sys.exit(stopped)
+    if server_errors:
+        sys.exit("%d run(s) failed with a server error and are left out of the results; rerun them" % server_errors)
 
 
 def cmd_smoke(args):
@@ -691,8 +696,9 @@ def cmd_summarize(args):
         rows = list(csv.DictReader(f))
     if getattr(args, "since", None):
         rows = [r for r in rows if r["timestamp"] >= args.since]
-    # Runs the API refused or cut off (a usage limit, another API error) say nothing about the preset. Rows written
-    # before these subtypes existed show it as an error result with subtype success.
+    # Runs the API refused or cut off (a usage limit, a server error) say nothing about the preset. Rows written before
+    # these subtypes existed show it as an error result with subtype success: in results/runs.csv, the six runs of
+    # 2026-10-19 that the weekly usage limit cut off (HTTP 429 in their raw JSON).
     refused = [r for r in rows if r.get("subtype") in ("usage_limit", "api_error") or (r.get("subtype") == "success" and r.get("is_error") == "True")]
     rows = [r for r in rows if r not in refused]
     if not rows:
