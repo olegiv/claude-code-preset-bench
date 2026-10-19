@@ -52,7 +52,7 @@ points, so the set should cover:
 |---|---|---|---|
 | UC1 | Exploration-heavy change in a real repo (`lazygit-conflict-markers`: honor git's `conflict-marker-size` attribute in lazygit, upstream PR #5902, from its parent commit) | Only place the Haiku-subagent arm can differ; exercises `Explore`-style subagents | `check.sh`, in a container without network: 8 hidden integration tests (score = fraction passed) behind hard gates (`go.mod`, `go.sum`, `vendor/` untouched; the build) and soft gates (gofmt, vet, the workspace's unit tests, lazygit's other 512 integration tests); `rubric.md`: minimality, correctness of reasoning |
 | UC2 | PR review with pr-review-toolkit on a fixed diff (`linkbox-review`: a planted pull request, about 550 lines, in a small Go service written for it) | The team's daily workflow; subagents are frontmatter-pinned, so this shows what the presets change in practice | `check.sh`: REVIEW.md's findings matched to 10 planted problems and 5 decoys, score = (found − decoys) / 10, PASS from 0.60; hard gates on REVIEW.md and an untouched pull request; soft gate when no pr-review-toolkit agent completed; `rubric.md` holds the answer key for explanations, severity and noise |
-| UC3 | Document/analysis task (e.g. a scoping-assessment section or an ADR from a brief) | Non-code output; tests whether the advisor adds anything when there is nothing to compile | `rubric.md` only, against a reference outline |
+| UC3 | Document/analysis task (`linkbox-storage-adr`: ADR 0002 for linkbox, UC2's service, choosing how it stores links, from a brief, the team's notes and the code) | Non-code output; tests whether the advisor adds anything when there is nothing to compile, and whether an agent reads closely enough to reach the one decision that fits every constraint | `check.sh` gates only (one ADR with ADR 0001's sections, workspace untouched, no commit); `rubric.md`: the facts in the materials, the defensible decision (managed PostgreSQL), ten grounded points, bands |
 | UC4 | Greenfield build with an algorithmic core and an htmx 4 UI (`meowdoku`: a 10×10 logic-puzzle web game in Go 1.27, htmx 4.0.0, Alpine.js 3.17.4) | Planning-heavy, with a real decision point (generating puzzles with exactly one solution), and it needs a library version newer than the models' training data | `check.sh`: 20 hidden Go acceptance tests (score = fraction passed) behind hard gates (go.mod and the two vendored scripts untouched; an offline build, which admits no third-party modules) and soft gates (gofmt, vet, own tests, `cmd/meowdoku` serving `-addr`, engine purity, `html/template`, `embed`), within a 750 s budget; `rubric.md` |
 
 UC4 is written (`usecases/meowdoku/`). Its caps (200 turns, $40, 7200 s) come from the calibration
@@ -66,6 +66,9 @@ network on the machine running `bench.py`, and Go 1.25 or later with git for the
 UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 3000 s) come from the
 calibration pass of 2026-10-18 (see the log). Running it needs the pr-review-toolkit plugin
 installed; runs get it and no other plugin.
+
+UC3 is written (`usecases/linkbox-storage-adr/`). Its caps (60 turns, $15, 2400 s) are provisional
+until a calibration pass. It needs nothing beyond git and python3 to grade.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -454,3 +457,17 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   for $0.48 against `high`'s $12.37. Turn counts read 1–8 with background subagents and are
   unreliable. Caps: 80 turns kept, $20 kept (1.5x $12.37 is $18.6), 3000 s (2x 1482 s). The
   calibration cost $29.09.
+- 2026-10-19 — UC3 written: `linkbox-storage-adr`; no model was called. The agent writes ADR 0002
+  for linkbox (UC2's base service, copied) from a brief, seven short notes in `docs/` and the
+  code. The notes are written so that one store fits every constraint: the platform requires at
+  least two replicas without session affinity and offers no persistent volumes, which rules out
+  SQLite and bbolt; Redis is a cache tier without backups; object storage has no conditional
+  writes and 20 to 80 ms per request against a 100 ms p99 target; teams may not run their own
+  databases. That leaves the managed PostgreSQL. Two traps: the brief leans towards SQLite and
+  ADR 0001 still says linkbox runs as a single instance. Since every strong arm should reach
+  PostgreSQL, the rubric puts its points on grounded consequences (the tickets explained by
+  replica divergence, the `l<n>` counter, the store's API, a pool sized for four instances,
+  retention under the 30-day erasure rule, migrations under concurrent starts) and caps any
+  other store at 3. `check.sh` only gates, with UC2's HEAD-moved gate, since a commit would
+  hide the whole ADR from the judge; `selftest.sh` checks that each fact the rubric cites is in
+  the materials and runs the gates on 17 workspace states. Caps are provisional.

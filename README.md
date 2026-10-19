@@ -61,6 +61,11 @@ usecases/
     README.md                           the service, the pull request, the answer key, the grader, the self-test
     workspace/, feature.patch, setup.sh the base service; the pull request, applied uncommitted by setup.sh
     answer-key.json, check.sh           planted problems and decoys; findings in REVIEW.md matched against them
+  linkbox-storage-adr/                  write an ADR choosing linkbox's storage, from the team's notes; judged by rubric
+    README.md                           the materials and their traps, the gates, the rubric, the self-test
+    workspace/, setup.sh, check.sh      linkbox plus docs/; record the start commit; gates on the ADR's file and sections
+    rubric.md, reference-adr.md         the facts and points the judge checks; a reference ADR, not given to the agent
+    selftest.sh                         the rubric's facts in the materials; the gates on known workspace states
   _template/                            copy to usecases/<name>/ ; folders starting with _ are ignored
 results/
   runs.csv                              one row per run (append-only)

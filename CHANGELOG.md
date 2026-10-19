@@ -57,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on REVIEW.md, an untouched pull request and no commit, and a soft gate when no toolkit agent
   completed; the rubric gives the judge the answer key. `selftest.sh` grades 19 known reviews.
   Its caps (80 turns, $20, 3000 s) come from one calibration run per preset.
+- A `linkbox-storage-adr` use case: each arm writes ADR 0002 for linkbox, choosing how it stores
+  links, from the team's notes in `docs/` and the code. The notes leave one store that fits
+  every constraint, behind two traps (the brief leans towards SQLite; ADR 0001 says linkbox
+  runs as a single instance). `check.sh` only gates the file, its sections and an untouched
+  workspace; the judge grades the content against the facts and ten points in `rubric.md`.
+  `selftest.sh` checks that the rubric's facts are in the materials and runs the gates on 17
+  known workspace states.
 
 ### Changed
 
