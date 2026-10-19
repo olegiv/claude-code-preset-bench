@@ -1,6 +1,6 @@
 # Benchmark summary
 
-Generated 2026-10-18 23:10 from 24 runs in `results/runs.csv`.
+Generated 2026-10-19 11:00 from 29 runs in `results/runs.csv`.
 
 Medians unless stated. `pass` = deterministic check pass rate (errored runs count as failures), `judge` = median LLM-judge score (0-10), `cost` = Claude Code's client-side estimate (`total_cost_usd`, all models incl. subagents and advisor, excludes the judge), `advisor` = the part of that cost billed to the advisor model, `cache read` = median cache_read_input_tokens.
 
@@ -23,6 +23,11 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | linkbox-review | light-force | 1 | 0 | 100% | - | 292.8 | 292.8-292.8 | $0.481 | $0.000 | $0.481 | 1.0 | 77098 |
 | linkbox-review | normal | 1 | 0 | 100% | - | 1266.1 | 1266.1-1266.1 | $2.581 | - | $2.581 | 1.0 | 78864 |
 | linkbox-review | normal-max | 1 | 0 | 100% | - | 1067.5 | 1067.5-1067.5 | $12.305 | - | $12.305 | 8.0 | 1179509 |
+| linkbox-storage-adr | high | 1 | 0 | 100% | 9.0 | 305.5 | 305.5-305.5 | $2.266 | $1.509 | $2.266 | 11.0 | 458030 |
+| linkbox-storage-adr | light | 1 | 0 | 100% | 8.5 | 36.0 | 36.0-36.0 | $0.172 | $0.000 | $0.172 | 4.0 | 112041 |
+| linkbox-storage-adr | light-force | 1 | 0 | 100% | 8.5 | 31.1 | 31.1-31.1 | $0.205 | $0.000 | $0.205 | 5.0 | 134670 |
+| linkbox-storage-adr | normal | 1 | 0 | 100% | 8.5 | 48.5 | 48.5-48.5 | $0.360 | - | $0.360 | 5.0 | 150713 |
+| linkbox-storage-adr | normal-max | 1 | 0 | 100% | 9.0 | 590.5 | 590.5-590.5 | $2.099 | - | $2.099 | 9.0 | 403658 |
 | meowdoku | high | 1 | 0 | 100% | - | 2526.9 | 2526.9-2526.9 | $13.881 | $4.410 | $13.881 | 127.0 | 20319704 |
 | meowdoku | light | 1 | 0 | 100% | - | 557.1 | 557.1-557.1 | $0.871 | $0.000 | $0.871 | 32.0 | 1963785 |
 | meowdoku | light-force | 1 | 0 | 100% | - | 661.3 | 661.3-661.3 | $0.822 | $0.000 | $0.822 | 27.0 | 1623792 |
@@ -33,11 +38,11 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 
 | use case | config | n | err | pass | judge | wall s (med) | min-max | cost (med) | advisor (med) | cost (sum) | turns | cache read |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ALL | high | 4 | 0 | 75% | 8.0 | 1179.2 | 24.9-2526.9 | $9.702 | $3.914 | $33.634 | 35.0 | 3004512 |
-| ALL | light | 5 | 0 | 100% | 10.0 | 281.3 | 11.5-557.1 | $0.871 | $0.000 | $4.767 | 15.0 | 406723 |
-| ALL | light-force | 5 | 1 | 80% | 10.0 | 383.4 | 12.0-661.3 | $0.618 | $0.000 | - | 16.5 | 882200 |
-| ALL | normal | 5 | 1 | 80% | 9.0 | 515.6 | 17.0-1266.1 | $2.092 | - | - | 18.0 | 1161609 |
-| ALL | normal-max | 5 | 2 | 60% | 8.0 | 1853.8 | 35.0-3602.5 | $12.305 | - | - | 8.0 | 701486 |
+| ALL | high | 5 | 0 | 80% | 8.5 | 876.9 | 24.9-2526.9 | $7.033 | $3.418 | $35.900 | 11.0 | 458030 |
+| ALL | light | 6 | 0 | 100% | 9.2 | 202.5 | 11.5-557.1 | $0.776 | $0.000 | $4.939 | 10.5 | 273963 |
+| ALL | light-force | 6 | 1 | 83% | 9.2 | 292.8 | 12.0-661.3 | $0.481 | $0.000 | - | 6.0 | 140608 |
+| ALL | normal | 6 | 1 | 83% | 8.8 | 327.7 | 17.0-1266.1 | $1.602 | - | - | 5.0 | 150713 |
+| ALL | normal-max | 6 | 2 | 67% | 8.5 | 1067.5 | 35.0-3602.5 | $7.202 | - | - | 8.5 | 552572 |
 
 ## Models billed per config
 
@@ -64,3 +69,5 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 
 - `20261018-192231-lazygit-conflict-markers-light-force-r1`: advisor 'opus' not in modelUsage
 - `20261018-222010-linkbox-review-light-force-r1`: advisor 'opus' not in modelUsage
+- `20261019-104652-linkbox-storage-adr-light-force-r1`: advisor 'opus' not in modelUsage
+- `20261019-104745-linkbox-storage-adr-light-r1`: advisor 'opus' not in modelUsage

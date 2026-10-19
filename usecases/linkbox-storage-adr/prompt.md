@@ -1,8 +1,8 @@
 ---
-# Provisional caps: calibrate with `python3 bench.py run --runs 1 -c light -u linkbox-storage-adr`
-max_turns: 60
-max_budget_usd: 15
-timeout_seconds: 2400
+# Caps from the calibration pass of 2026-10-19 (PLAN.md log)
+max_turns: 25
+max_budget_usd: 4
+timeout_seconds: 1200
 ---
 This repository is linkbox, a small Go HTTP service (see README.md). The team keeps its notes in `docs/`; start with `docs/brief.md`.
 

@@ -67,8 +67,8 @@ UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 3000 s) co
 calibration pass of 2026-10-18 (see the log). Running it needs the pr-review-toolkit plugin
 installed; runs get it and no other plugin.
 
-UC3 is written (`usecases/linkbox-storage-adr/`). Its caps (60 turns, $15, 2400 s) are provisional
-until a calibration pass. It needs nothing beyond git and python3 to grade.
+UC3 is written (`usecases/linkbox-storage-adr/`). Its caps (25 turns, $4, 1200 s) come from the
+calibration pass of 2026-10-19 (see the log). It needs nothing beyond git and python3 to grade.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -124,6 +124,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - The owner's plugins reached every run and the judge, hooks included: security-guidance's Stop hook sends the git diff to an LLM review (on Opus, by default) and wakes the agent with its findings, outside the run's cost and turn counts. On UC1 and UC4 it reviewed the agent's own changes; on UC2 it reviewed the planted pull request, which hands any arm three of the ten problems → since 2026-10-18 runs get only the plugins their use case declares (`plugins:` in `prompt.md`), the judge and `smoke` none; Claude Code's built-in plugins stay. The UC1 and UC4 calibrations ran with it.
 - Judge diff limit: 60 000 characters cut off the UC4 calibration diffs of `high` and `normal-max` (83 000–87 000) → raised to 120 000 on 2026-10-18; a longer diff is still cut off, and the rubric tells the judge not to penalise what it cannot see.
 - UC2: ceiling → in calibration every arm found nine or ten of the ten planted problems, so the check barely separates the arms; the judge and the cost then decide.
+- UC3: ceiling → in calibration every arm chose the managed PostgreSQL and the judge gave 8.5 to 9.0, half a point apart on details; three repeats will show whether that half point is signal or the judge's noise.
 - UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
 - UC4, known limit (M16): a stalled handler's goroutine keeps running inside the hidden test binary (no process isolation) → watchdogs bound the wait, not the CPU it uses.
@@ -479,3 +480,16 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   checked unstaged workspaces only. The check now stages the workspace itself, as `collect_diff`
   does, and grades the staged diff against `HEAD`, the diff the judge sees; the self-test stages
   every state before the check, as the harness does, plus one unstaged variant.
+- 2026-10-19 — UC3 calibration: one run per arm with the judge (Opus, effort high), Claude Code
+  2.1.302. Every run passed the check, the first real runs of the check as fixed in PR 10. Every
+  arm chose the managed PostgreSQL, explained the tickets by replica divergence and called ADR
+  0001's single-instance premise out of date: neither trap caught anyone. Judge: `high` 9.0
+  (305 s, $2.27), `normal-max` 9.0 (590 s, $2.10), `normal` 8.5 (48 s, $0.36), `light` 8.5 (36 s,
+  $0.17), `light-force` 8.5 (31 s, $0.21). The 8.5s missed details the 9.0s covered (a store
+  interface with `context`, the tag schema and its indexes, migrations under concurrent starts);
+  ADRs ran 750 to 1,350 words, with no contradictions of the materials and no padding by the
+  judge's account. No run spawned a subagent, so `light` and `light-force` ran the same setup
+  here, and `light`'s Sonnet again never called its Opus advisor; `high`'s Fable advisor was two
+  thirds of its cost. A ceiling on the decision, as in the other use cases; the judge's half point
+  and a thirteenfold cost spread are what separate the arms. Caps: 25 turns (`high` used 11),
+  $4 (1.8x $2.27), 1200 s (2x 590 s). The calibration cost $5.10, plus $0.91 for the judge.

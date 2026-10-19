@@ -63,7 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs as a single instance). `check.sh` only gates the file, its sections and an untouched
   workspace; the judge grades the content against the facts and ten points in `rubric.md`.
   `selftest.sh` checks that the rubric's facts are in the materials and runs the gates on 21
-  known workspace states, staged as `bench.py` stages them before the check.
+  known workspace states, staged as `bench.py` stages them before the check. Its caps (25
+  turns, $4, 1200 s) come from one calibration run per preset.
 
 ### Changed
 

@@ -9,7 +9,7 @@ to reach the one decision that fits them all.
 
 | File | What it is |
 |---|---|
-| `prompt.md` | Caps (provisional) and the task |
+| `prompt.md` | Caps (from the calibration pass) and the task |
 | `workspace/` | linkbox's base service (copied from `linkbox-review/workspace/`) plus the team's notes in `docs/`; `bench.py` commits it |
 | `setup.sh` | Records the starting commit in `.git/ccbench-base` |
 | `check.sh` | The gates; the judge grades the content |
@@ -72,6 +72,8 @@ and that the workspace builds, vets and tests, then runs the check on 21 workspa
 ## Known limits
 
 - The judge alone measures quality; its scores vary more between runs than a deterministic check's.
+- Ceiling: in calibration every preset chose PostgreSQL, caught both traps and scored 8.5 or 9.0; the presets
+  differed in details (indexes, the store's API) and in cost.
 - The rubric and the reference ADR are in this public repository, and the agent runs unsandboxed, as in the other
   use cases.
 - linkbox's code is a copy of UC2's base service: a change to one does not reach the other.
