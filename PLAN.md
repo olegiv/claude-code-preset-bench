@@ -481,7 +481,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   does, and grades the staged diff against `HEAD`, the diff the judge sees; the self-test stages
   every state before the check, as the harness does, plus one unstaged variant.
 - 2026-10-19 — UC3 calibration: one run per arm with the judge (Opus, effort high), Claude Code
-  2.1.302. Every run passed the check, the first real runs of the check as fixed in PR 10. Every
+  2.1.303. Every run passed the check, the first real runs of the check as fixed in PR 10. Every
   arm chose the managed PostgreSQL, explained the tickets by replica divergence and called ADR
   0001's single-instance premise out of date: neither trap caught anyone. Judge: `high` 9.0
   (305 s, $2.27), `normal-max` 9.0 (590 s, $2.10), `normal` 8.5 (48 s, $0.36), `light` 8.5 (36 s,
