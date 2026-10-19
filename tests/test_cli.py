@@ -23,6 +23,13 @@ ROWS = [
      "models_used": "claude-opus-5-5"},
 ]
 
+# Stands in for Claude Code in a linkbox-storage-adr run: writes the ADR given in REF_ADR and prints a result.
+FAKE_ADR_CLAUDE = """#!/bin/bash
+if [ "${1:-}" = "--version" ]; then echo "0.0.0 (fake)"; exit 0; fi
+cp "$REF_ADR" docs/adr/0002-store-links-in-postgresql.md
+printf '{"type": "result", "subtype": "success", "is_error": false, "num_turns": 1, "result": "PostgreSQL.", "modelUsage": {}}\\n'
+"""
+
 
 class CliTest(unittest.TestCase):
     """list, run --dry-run, summarize and argument errors."""
@@ -66,6 +73,15 @@ class CliTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stderr.count("DRY RUN"), len(config_names()))
         self.assertFalse(os.path.exists(self.results("runs.csv")))
+
+    def test_a_linkbox_storage_adr_run_passes_its_check_after_bench_stages_the_workspace(self):
+        # bench.py stages the workspace (collect_diff) before it runs check.sh, so the check must grade a staged ADR.
+        write_file(os.path.join(self.root, "bench-mcp.json"), json.dumps({"mcpServers": {"noop": {"command": "true", "args": []}}}))
+        write_file(os.path.join(self.tmp, "bin", "claude"), FAKE_ADR_CLAUDE, 0o755)
+        self.env["REF_ADR"] = os.path.join(self.root, "usecases", "linkbox-storage-adr", "reference-adr.md")
+        p = self.bench("run", "--runs", "1", "-c", "light", "-u", "linkbox-storage-adr", "--no-judge")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("check: PASS (score 1.00)", p.stderr)
 
     def test_a_dry_run_enables_the_declared_plugin_even_when_it_is_not_installed(self):
         p = self.bench("run", "--dry-run", "--runs", "1", "--no-judge", "-u", "linkbox-review", "-c", "light")

@@ -48,13 +48,11 @@ def files(root):
     return found
 
 
-# The workspace as bench.py copied it must be unchanged: code, docs and ADR 0001.
+# The workspace as bench.py copied it must be unchanged: code, docs and ADR 0001. This compares the files themselves,
+# whatever git's index says.
 want = files(template)
-changed = set(p for p in want if os.path.islink(os.path.join(ws, p)) or not os.path.isfile(os.path.join(ws, p))
-              or open(os.path.join(ws, p), "rb").read() != open(os.path.join(template, p), "rb").read())
-# git compares each committed file's bytes, mode and type with HEAD, the starting commit (the gate below keeps it so).
-git_diff = subprocess.run(["git", "diff", "-z", "--name-only", "HEAD", "--"], cwd=ws, capture_output=True, text=True)
-changed = sorted(changed | set(p for p in git_diff.stdout.split("\0") if p))
+changed = sorted(p for p in want if os.path.islink(os.path.join(ws, p)) or not os.path.isfile(os.path.join(ws, p))
+                 or open(os.path.join(ws, p), "rb").read() != open(os.path.join(template, p), "rb").read())
 if changed:
     fail("files of the workspace changed or missing: " + ", ".join(changed[:10]))
 out.append("ok: the workspace's files are unchanged")
@@ -71,15 +69,22 @@ head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ws, capture_output=True,
 if head != base:
     fail("HEAD moved from the starting commit: the run committed, which the judge's diff would not show")
 
-# git's list of untracked files is what bench.py stages for the judge; it lists a symlink, to a file or a directory,
-# as one entry.
-untracked = subprocess.run(["git", "ls-files", "-z", "--others", "--exclude-standard"], cwd=ws, capture_output=True, text=True)
-added = sorted(p for p in untracked.stdout.split("\0") if p and not any(fnmatch.fnmatch(p, g) for g in IGNORED))
+# Grade what the judge sees: stage the workspace as bench.py's collect_diff does before it runs this check (so this is
+# then a no-op), and read the staged diff against HEAD. It shows a changed mode, and a symlink, to a file or a
+# directory, as one entry with mode 120000.
+subprocess.run(["git", "add", "-A"], cwd=ws, capture_output=True, check=False)
+raw = subprocess.run(["git", "diff", "--cached", "HEAD", "--raw", "-z", "--no-renames"], cwd=ws, capture_output=True,
+                     text=True).stdout.split("\0")
+staged = [(meta.split()[1], meta.split()[4], path) for meta, path in zip(raw[0::2], raw[1::2]) if meta]
+touched = sorted(path for _, status, path in staged if status != "A")
+if touched:
+    fail("files of the workspace changed or missing: " + ", ".join(touched[:10]))
+added = sorted(path for _, status, path in staged if status == "A" and not any(fnmatch.fnmatch(path, g) for g in IGNORED))
 # A symlink would let the gates read text from outside the workspace that the judge's diff does not show.
-links = [p for p in added if os.path.islink(os.path.join(ws, p))]
+links = sorted(path for mode, status, path in staged if status == "A" and mode == "120000")
 if links:
     fail("symbolic links added: " + ", ".join(links[:10]))
-adrs =[p for p in added if ADR.match(p)]
+adrs = [p for p in added if ADR.match(p)]
 extra = [p for p in added if p not in adrs]
 if len(adrs) != 1:
     fail("%d files named docs/adr/0002-<lowercase-title>.md, want exactly 1 (added: %s)" % (len(adrs), ", ".join(added[:10]) or "nothing"))

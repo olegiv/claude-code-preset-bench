@@ -471,4 +471,11 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   retention under the 30-day erasure rule, migrations under concurrent starts) and caps any
   other store at 3. `check.sh` only gates, with UC2's HEAD-moved gate, since a commit would
   hide the whole ADR from the judge; `selftest.sh` checks that each fact the rubric cites is in
-  the materials and runs the gates on 20 workspace states. Caps are provisional.
+  the materials and runs the gates on 21 workspace states. Caps are provisional.
+- 2026-10-19 — PR 10, third review (Codex, one P1): `bench.py` stages the workspace (`git add -A`
+  in `collect_diff`) before it runs `check.sh`, but the two earlier review rounds had made UC3's
+  check read unstaged git state (`git diff HEAD`, then `git ls-files --others`), so a staged ADR
+  counted as a changed workspace file and every real run would have failed. The self-test had
+  checked unstaged workspaces only. The check now stages the workspace itself, as `collect_diff`
+  does, and grades the staged diff against `HEAD`, the diff the judge sees; the self-test stages
+  every state before the check, as the harness does, plus one unstaged variant.
