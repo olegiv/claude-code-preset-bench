@@ -163,6 +163,11 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   Opus, not the catalog's 5.2x. No advisor was consulted and no subagent spawned, so `light` and
   `light-force` are indistinguishable here. The judge cost more than the five runs ($1.49 vs $1.35,
   ~50–90k tokens of context per Opus call); total $2.84.
+- 2026-10-19 — The experiment (step 4: three repeats of UC1–UC4, all five arms, with the judge; log
+  entry of that date). By the decision rule, the cheap arms win every use case: `light` on UC3,
+  `light-force` on UC2, and the two tied on UC1 and UC4, at $0.63–0.75 a run on average. `normal`
+  is the quality-per-cost choice (judge median 9.0 on UC1–UC3, 8.8 on UC4, $1.70 a run). `high`
+  and `normal-max` never beat `normal`'s median and cost five times as much.
 
 ## Log
 
@@ -494,3 +499,31 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   thirds of its cost. A ceiling on the decision, as in the other use cases; the judge's half point
   and a thirteenfold cost spread are what separate the arms. Caps: 25 turns (`high` used 11),
   $4 (1.8x $2.27), 1200 s (2x 590 s). The calibration cost $5.10, plus $0.91 for the judge.
+- 2026-10-19 — The experiment, step 4: `run --runs 3 -u lazygit-conflict-markers linkbox-review
+  linkbox-storage-adr meowdoku` (60 runs, judge Opus at effort high, Claude Code 2.1.303), 10.8 h,
+  $230.93 plus $14.96 for the judge. At 15:15 the plan's weekly limit cut off six runs (HTTP 429:
+  UC4 `normal-max` r1 after 40 minutes, then UC4 `normal` r1 and UC1 `high`, `light`,
+  `light-force` and `normal-max` r2 within seconds); runs went through again from 15:18. Those six
+  are left out (54 valid runs; `summarize --since 2026-10-19T11:50`), and were not rerun, so six
+  cells hold two runs. Per use case, pass rate · judge median · median cost:
+
+  | use case | `high` | `normal-max` | `normal` | `light` | `light-force` |
+  |---|---|---|---|---|---|
+  | UC1 | 2/2 · 9.0 · $6.64 | 0/2 · 8.0 · $9.65 | 3/3 · 9.0 · $1.70 | 2/2 · 9.0 · $0.59 | 2/2 · 8.5 · $0.70 |
+  | UC2 | 3/3 · 9.0 · $13.90 | 3/3 · 8.5 · $12.31 | 3/3 · 9.0 · $2.65 | 3/3 · 8.5 · $1.66 | 3/3 · 9.0 · $0.78 |
+  | UC3 | 3/3 · 9.0 · $2.18 | 3/3 · 9.0 · $1.84 | 3/3 · 9.0 · $0.37 | 3/3 · 8.0 · $0.16 | 3/3 · 7.5 · $0.17 |
+  | UC4 | 3/3 · 9.0 · $11.83 | 2/2 · 9.0 · $15.74 | 2/2 · 8.8 · $2.27 | 3/3 · 8.0 · $0.63 | 3/3 · 8.0 · $0.75 |
+
+  By the decision rule: UC1 `light` and `light-force` (16% apart, under the rule's 25%), UC2
+  `light-force` (53% cheaper than `light`), UC3 `light` (exactly one point below the best;
+  `light-force` misses the window), UC4 `light` and `light-force` (16% apart). Every valid run
+  passed its check except UC1 `normal-max`, which hit the 100-turn cap both times with working
+  code (check 1.00): that cap came from `high`'s 64 turns, since `normal-max`'s count was broken by
+  a background subagent in calibration, so its 0/2 is partly the cap's. Mean cost per run: `high`
+  $8.84, `normal-max` $9.34, `normal` $1.70, `light` $0.75, `light-force` $0.63. `normal-max` was
+  the slowest arm everywhere (UC4 median 3462 s). Advisor use showed only on UC2: in
+  `light-force`, where every subagent runs on Haiku, its Opus usage ($0.26–0.78 a run) can only be
+  the advisor; in `light` it cannot be told from `code-reviewer`, which pins Opus. Limits: the
+  judge is Opus, the main model of three arms, and its scores sit at 7.5–9.0, so the one-point
+  window decides UC3 and UC4; six cells have two runs. Not done: rerunning the six cut-off runs,
+  and UC1 `normal-max` with a higher turn cap.
