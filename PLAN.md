@@ -82,6 +82,9 @@ observed values), and `timeout_seconds` at 2x the observed wall time.
    more later if two arms are within noise on a use case.
 5. `python3 bench.py summarize` — tables to `results/summary.md`; paste conclusions into the log.
 
+Steps 1 to 5 were done by 2026-10-19 (see the log); the README's Results section holds the
+recommendation that follows from them.
+
 Judge: `opus` at effort `high` (default). Opus is also a main model in three arms; acceptable, but if
 Fable is available for judging, use `--judge-model fable` for the whole experiment and keep it fixed.
 
