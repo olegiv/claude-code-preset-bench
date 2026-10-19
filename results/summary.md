@@ -1,6 +1,6 @@
 # Benchmark summary
 
-Generated 2026-10-18 21:06 from 19 runs in `results/runs.csv`.
+Generated 2026-10-18 23:10 from 24 runs in `results/runs.csv`.
 
 Medians unless stated. `pass` = deterministic check pass rate (errored runs count as failures), `judge` = median LLM-judge score (0-10), `cost` = Claude Code's client-side estimate (`total_cost_usd`, all models incl. subagents and advisor, excludes the judge), `advisor` = the part of that cost billed to the advisor model, `cache read` = median cache_read_input_tokens.
 
@@ -18,7 +18,11 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 | lazygit-conflict-markers | light-force | 2 | 1 | 50% | - | 473.9 | 473.9-473.9 | $0.756 | $0.000 | - | 28.0 | 1957842 |
 | lazygit-conflict-markers | normal | 2 | 1 | 50% | - | 327.7 | 327.7-327.7 | $1.602 | - | - | 32.0 | 2187190 |
 | lazygit-conflict-markers | normal-max | 2 | 1 | 50% | - | 2640.2 | 2640.2-2640.2 | $13.723 | - | - | 2.0 | 701486 |
-| linkbox-review | light | 1 | 0 | 100% | - | 123.7 | 123.7-123.7 | $1.710 | $0.692 | $1.710 | 15.0 | 406723 |
+| linkbox-review | high | 1 | 0 | 100% | - | 1481.5 | 1481.5-1481.5 | $12.371 | $7.018 | $12.371 | 2.0 | 231621 |
+| linkbox-review | light | 2 | 0 | 100% | - | 245.5 | 123.7-367.3 | $1.531 | $0.532 | $3.062 | 8.0 | 242081 |
+| linkbox-review | light-force | 1 | 0 | 100% | - | 292.8 | 292.8-292.8 | $0.481 | $0.000 | $0.481 | 1.0 | 77098 |
+| linkbox-review | normal | 1 | 0 | 100% | - | 1266.1 | 1266.1-1266.1 | $2.581 | - | $2.581 | 1.0 | 78864 |
+| linkbox-review | normal-max | 1 | 0 | 100% | - | 1067.5 | 1067.5-1067.5 | $12.305 | - | $12.305 | 8.0 | 1179509 |
 | meowdoku | high | 1 | 0 | 100% | - | 2526.9 | 2526.9-2526.9 | $13.881 | $4.410 | $13.881 | 127.0 | 20319704 |
 | meowdoku | light | 1 | 0 | 100% | - | 557.1 | 557.1-557.1 | $0.871 | $0.000 | $0.871 | 32.0 | 1963785 |
 | meowdoku | light-force | 1 | 0 | 100% | - | 661.3 | 661.3-661.3 | $0.822 | $0.000 | $0.822 | 27.0 | 1623792 |
@@ -29,11 +33,11 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 
 | use case | config | n | err | pass | judge | wall s (med) | min-max | cost (med) | advisor (med) | cost (sum) | turns | cache read |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ALL | high | 3 | 0 | 67% | 8.0 | 876.9 | 24.9-2526.9 | $7.033 | $3.418 | $21.263 | 64.0 | 5777402 |
-| ALL | light | 4 | 0 | 100% | 10.0 | 202.5 | 11.5-557.1 | $0.776 | $0.000 | $3.415 | 19.5 | 971842 |
-| ALL | light-force | 4 | 1 | 75% | 10.0 | 473.9 | 12.0-661.3 | $0.756 | $0.000 | - | 27.0 | 1623792 |
-| ALL | normal | 4 | 1 | 75% | 9.0 | 327.7 | 17.0-703.5 | $1.602 | - | - | 32.0 | 2187190 |
-| ALL | normal-max | 4 | 2 | 50% | 8.0 | 2640.2 | 35.0-3602.5 | $7.057 | - | - | 5.5 | 463455 |
+| ALL | high | 4 | 0 | 75% | 8.0 | 1179.2 | 24.9-2526.9 | $9.702 | $3.914 | $33.634 | 35.0 | 3004512 |
+| ALL | light | 5 | 0 | 100% | 10.0 | 281.3 | 11.5-557.1 | $0.871 | $0.000 | $4.767 | 15.0 | 406723 |
+| ALL | light-force | 5 | 1 | 80% | 10.0 | 383.4 | 12.0-661.3 | $0.618 | $0.000 | - | 16.5 | 882200 |
+| ALL | normal | 5 | 1 | 80% | 9.0 | 515.6 | 17.0-1266.1 | $2.092 | - | - | 18.0 | 1161609 |
+| ALL | normal-max | 5 | 2 | 60% | 8.0 | 1853.8 | 35.0-3602.5 | $12.305 | - | - | 8.0 | 701486 |
 
 ## Models billed per config
 
@@ -59,3 +63,4 @@ Medians unless stated. `pass` = deterministic check pass rate (errored runs coun
 - `20261018-182805-lazygit-conflict-markers-light-force-r1`: harness error: setup.sh failed: Cannot connect to the Docker daemon at unix:///Users/olegiv/.docker/run/docker.sock. Is the docker daemon running?
 
 - `20261018-192231-lazygit-conflict-markers-light-force-r1`: advisor 'opus' not in modelUsage
+- `20261018-222010-linkbox-review-light-force-r1`: advisor 'opus' not in modelUsage

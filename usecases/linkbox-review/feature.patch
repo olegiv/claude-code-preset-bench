@@ -21,7 +21,7 @@ index f01ca42..f0fa96e 100644
  go test ./...
  ```
 diff --git a/cmd/linkbox/main.go b/cmd/linkbox/main.go
-index c17158a..ba750d5 100644
+index c17158a..bd2135c 100644
 --- a/cmd/linkbox/main.go
 +++ b/cmd/linkbox/main.go
 @@ -14,22 +14,28 @@ import (
@@ -78,13 +78,22 @@ index c17158a..ba750d5 100644
  	errc := make(chan error, 1)
  	go func() {
  		log.Info("listening", "addr", addr)
-@@ -68,3 +78,22 @@ func run(addr, keysPath string, log *slog.Logger) error {
+@@ -68,3 +78,26 @@ func run(addr, keysPath string, log *slog.Logger) error {
  	}
  	return nil
  }
 +
-+// cleanExports removes old export files every hour until ctx is done.
++// cleanExports removes old export files at startup and then every hour until ctx is done.
 +func cleanExports(ctx context.Context, dir string, log *slog.Logger) {
++	sweep := func(now time.Time) {
++		n, err := export.Cleanup(dir, exportMaxAge, now)
++		if err != nil {
++			log.Error("cleaning exports", "removed", n, "err", err)
++			return
++		}
++		log.Info("cleaned exports", "removed", n)
++	}
++	sweep(time.Now())
 +	ticker := time.NewTicker(time.Hour)
 +	defer ticker.Stop()
 +	for {
@@ -92,12 +101,7 @@ index c17158a..ba750d5 100644
 +		case <-ctx.Done():
 +			return
 +		case now := <-ticker.C:
-+			n, err := export.Cleanup(dir, exportMaxAge, now)
-+			if err != nil {
-+				log.Error("cleaning exports", "err", err)
-+				continue
-+			}
-+			log.Info("cleaned exports", "removed", n)
++			sweep(now)
 +		}
 +	}
 +}

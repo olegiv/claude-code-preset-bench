@@ -63,9 +63,9 @@ UC1 is written (`usecases/lazygit-conflict-markers/`). Its caps (100 turns, $25,
 the calibration pass of 2026-10-18 (see the log). Running it needs Docker and, the first time,
 network on the machine running `bench.py`, and Go 1.25 or later with git for the agents.
 
-UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 2700 s) are provisional
-until a calibration pass. Running it needs the pr-review-toolkit plugin installed; runs get it and
-no other plugin.
+UC2 is written (`usecases/linkbox-review/`). Its caps (80 turns, $20, 3000 s) come from the
+calibration pass of 2026-10-18 (see the log). Running it needs the pr-review-toolkit plugin
+installed; runs get it and no other plugin.
 
 Per use case, set `max_turns` and `max_budget_usd` from one `--runs 1` pass (roughly 1.5x the
 observed values), and `timeout_seconds` at 2x the observed wall time.
@@ -119,6 +119,7 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
 - The owner's MCP servers and claude.ai connectors reached every run and the judge (163 tools in the UC4 calibration) → since 2026-10-18 runs get only the Chrome DevTools server in `bench-mcp.json` (headless, throwaway profile), the judge none, and Claude in Chrome is off for both. A machine with an administrator's `managed-mcp.json` cannot run that way (Claude Code exits at startup), so `run` and `smoke` refuse it.
 - The owner's plugins reached every run and the judge, hooks included: security-guidance's Stop hook sends the git diff to an LLM review (on Opus, by default) and wakes the agent with its findings, outside the run's cost and turn counts. On UC1 and UC4 it reviewed the agent's own changes; on UC2 it reviewed the planted pull request, which hands any arm three of the ten problems → since 2026-10-18 runs get only the plugins their use case declares (`plugins:` in `prompt.md`), the judge and `smoke` none; Claude Code's built-in plugins stay. The UC1 and UC4 calibrations ran with it.
 - Judge diff limit: 60 000 characters cut off the UC4 calibration diffs of `high` and `normal-max` (83 000–87 000) → raised to 120 000 on 2026-10-18; a longer diff is still cut off, and the rubric tells the judge not to penalise what it cannot see.
+- UC2: ceiling → in calibration every arm found nine or ten of the ten planted problems, so the check barely separates the arms; the judge and the cost then decide.
 - UC4: ceiling → every arm scored 1.00 in calibration, so the check may not separate the arms; the judge and the cost then decide.
 - UC4, known limit (M13): a harness fault (no Go 1.27+, no perl) reaches the CSV and the judge as FAIL 0.00, like a hard-gate failure → only `results/raw/<run_id>.check.log` tells them apart.
 - UC4, known limit (M16): a stalled handler's goroutine keeps running inside the hidden test binary (no process isolation) → watchdogs bound the wait, not the CPU it uses.
@@ -439,3 +440,17 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   formula-leading cells and `Cleanup` carries on past a file it cannot remove, so the decoy lines
   invite nothing else (+623/−16 by `git apply --numstat`; only `cleanup-remove`'s windows moved).
   The calibration restarts on all five arms; this run's row describes the earlier version.
+- 2026-10-18 — UC2 calibration: one run per arm, no judge, Claude Code 2.1.302, the first runs
+  with only pr-review-toolkit loaded (no run mentions a hook). Every arm passed, and in every run
+  all five toolkit agents completed: `high` 0.90 (1482 s, $12.37), `normal-max` 0.90 (1067 s,
+  $12.30), `normal` 0.90 (1266 s, $2.58), `light` 0.90 (367 s, $1.35) and `light-force` 1.00
+  (293 s, $0.48). Every arm found all ten planted problems except `light`, which missed the
+  `?owner=` bypass. The three Opus arms each lost 0.10 on the `ticker-goroutine` decoy with the
+  same valid finding, cited at the ticker line: the first export cleanup runs an hour after
+  startup. The cleanup goroutine now also sweeps at startup (the decoy's windows moved to 93–94
+  and 97–98; the pull request is +627/−16), which leaves the caps as they are. Without those hits
+  the check reads 1.00 for every arm but `light`: a ceiling, as in UC1 and UC4, so the judge and
+  the cost decide. `light-force`, with every subagent on Haiku, matched the Opus arms' findings
+  for $0.48 against `high`'s $12.37. Turn counts read 1–8 with background subagents and are
+  unreliable. Caps: 80 turns kept, $20 kept (1.5x $12.37 is $18.6), 3000 s (2x 1482 s). The
+  calibration cost $29.09.

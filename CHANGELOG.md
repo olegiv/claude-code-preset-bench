@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to ten planted problems and five decoys (score = found − decoys, over ten), with hard gates
   on REVIEW.md, an untouched pull request and no commit, and a soft gate when no toolkit agent
   completed; the rubric gives the judge the answer key. `selftest.sh` grades 19 known reviews.
+  Its caps (80 turns, $20, 3000 s) come from one calibration run per preset.
 
 ### Changed
 

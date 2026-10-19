@@ -87,7 +87,7 @@
       "id": "ticker-goroutine",
       "looks_like": "a leaked goroutine or ticker",
       "why_correct": "cleanExports stops the ticker with defer and returns when the server's context is cancelled.",
-      "windows": {"cmd/linkbox/main.go": [[84, 85], [88, 89]]},
+      "windows": {"cmd/linkbox/main.go": [[93, 94], [97, 98]]},
       "anchors": {"cmd/linkbox/main.go": "defer ticker.Stop()"}
     },
     {

@@ -14,7 +14,7 @@ export", adds about 600 lines in 9 files and carries ten planted problems and fi
 
 | File | What it is |
 |---|---|
-| `prompt.md` | Caps (provisional) and the task |
+| `prompt.md` | Caps (from the calibration pass) and the task |
 | `workspace/` | The base service: about 800 lines of Go with tests; `bench.py` commits it |
 | `feature.patch` | The pull request; `setup.sh` applies it. It is a patch, not Go files, so the repository's code scanning does not flag the planted problems |
 | `setup.sh` | Applies the patch with `git apply --intent-to-add` and records the starting commit in `.git/ccbench-base` |
@@ -77,8 +77,9 @@ truncation, the cleanup's `os.Remove` (only prefixed regular files it listed), t
 checked one, and ignored `csv.Writer.Write` errors (the sticky error is checked after `Flush`). Windows are placed
 so that a fair finding about a problem cannot land on a decoy, and `selftest.sh` asserts that each anchor string
 lies in its window and that no windows overlap. The code around the decoys leaves nothing else to find there:
-`WriteCSV` escapes cells that a spreadsheet would read as formulas, and `Cleanup` carries on past a file it cannot
-remove (the first calibration run lost 0.20 to valid findings about both on decoy lines).
+`WriteCSV` escapes cells that a spreadsheet would read as formulas, `Cleanup` carries on past a file it cannot
+remove, and the cleanup goroutine also sweeps at startup. Calibration runs lost 0.10 for each of these to valid
+findings on decoy lines before they were fixed.
 
 ## Self-test
 
@@ -102,5 +103,7 @@ build, vet and test, then grades 19 generated reviews; `CHECK_BASH=/bin/bash` us
 - The answer key is in this public repository and the agent runs unsandboxed, as in the other use cases.
 - A real problem outside the key earns nothing from the check; the judge credits it.
 - A review that cites the right line for the wrong reason still counts; the judge sees the explanation.
+- Ceiling: in calibration every preset found nine or ten of the ten problems, so the check barely separates them;
+  the judge and the cost decide.
 - `bench.py` counts Opus usage in `light` as its advisor's cost; on UC2, `code-reviewer`'s Opus usage lands there
   too, so read `light`'s `per_model_cost_usd` with that in mind.

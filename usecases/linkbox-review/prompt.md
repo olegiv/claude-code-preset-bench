@@ -1,8 +1,8 @@
 ---
-# Provisional caps: calibrate with `python3 bench.py run --runs 1 -c light -u linkbox-review`
+# Caps from the calibration pass of 2026-10-18 (PLAN.md log)
 max_turns: 80
 max_budget_usd: 20
-timeout_seconds: 2700
+timeout_seconds: 3000
 # Runs get only this plugin; bench.py turns off every other one
 plugins: pr-review-toolkit@claude-plugins-official
 ---
