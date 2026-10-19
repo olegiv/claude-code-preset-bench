@@ -15,7 +15,7 @@ to reach the one decision that fits them all.
 | `check.sh` | The gates; the judge grades the content |
 | `rubric.md` | The judge's rubric: the facts in the materials, the defensible decision, ten points to check, bands |
 | `reference-adr.md` | A reference ADR, not given to the agent; the self-test's passing variant |
-| `selftest.sh` | Checks the use case, then runs the check on 17 known workspace states |
+| `selftest.sh` | Checks the use case, then runs the check on 18 known workspace states |
 
 ## The materials
 
@@ -56,7 +56,7 @@ PostgreSQL scores at most 3; a generic "PostgreSQL because it is durable" ADR la
 ## Self-test
 
 `bash selftest.sh` (about 10 seconds) first checks that every fact the rubric cites is stated in the file it names
-and that the workspace builds, vets and tests, then runs the check on 17 workspace states;
+and that the workspace builds, vets and tests, then runs the check on 18 workspace states;
 `CHECK_BASH=/bin/bash` uses macOS's bash 3.2.
 
 | Variant | Verdict |
@@ -64,7 +64,7 @@ and that the workspace builds, vets and tests, then runs the check on 17 workspa
 | `perfect` (the reference ADR), `options-heading`, `binary-ignored` | PASS, 1.00 |
 | `missing-section`, `empty-section`, `too-short` | FAIL, 0.00 |
 | `no-adr`, `wrong-number`, `uppercase-title`, `wrong-dir`, `two-adrs` | FAIL, 0.00 |
-| `extra-file`, `code-edited`, `adr0001-edited`, `symlinked-doc`, `symlinked-adr`, `committed` | FAIL, 0.00 |
+| `extra-file`, `code-edited`, `adr0001-edited`, `mode-changed`, `symlinked-doc`, `symlinked-adr`, `committed` | FAIL, 0.00 |
 
 ## Known limits
 

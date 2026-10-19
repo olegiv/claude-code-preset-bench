@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every constraint, behind two traps (the brief leans towards SQLite; ADR 0001 says linkbox
   runs as a single instance). `check.sh` only gates the file, its sections and an untouched
   workspace; the judge grades the content against the facts and ten points in `rubric.md`.
-  `selftest.sh` checks that the rubric's facts are in the materials and runs the gates on 17
+  `selftest.sh` checks that the rubric's facts are in the materials and runs the gates on 18
   known workspace states.
 
 ### Changed

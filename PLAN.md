@@ -97,7 +97,8 @@ cases, the recommendation is per task type, not one global preset.
 
 ## Budget
 
-3 use cases x 5 arms x 3 repeats = 45 agent runs + 45 judge calls. From the one real run so far
+4 use cases x 5 arms x 3 repeats = 60 agent runs + 60 judge calls; `run` takes every use case, `example-fix-tests`
+included, unless they are named with `-u` (75 runs otherwise). From the one real run so far
 (`light` at effort max, trivial fix: $0.46, 73 s), realistic tasks are expected at roughly $1–5 per
 run on the Sonnet arms and $3–15 on the Opus arms at effort max, i.e. at most on the order of
 $110–300 of estimated usage, plus judge calls (~$0.1–0.5 each). Only `normal-max` still runs at
@@ -470,4 +471,4 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   retention under the 30-day erasure rule, migrations under concurrent starts) and caps any
   other store at 3. `check.sh` only gates, with UC2's HEAD-moved gate, since a commit would
   hide the whole ADR from the judge; `selftest.sh` checks that each fact the rubric cites is in
-  the materials and runs the gates on 17 workspace states. Caps are provisional.
+  the materials and runs the gates on 18 workspace states. Caps are provisional.

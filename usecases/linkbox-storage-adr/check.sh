@@ -50,8 +50,11 @@ def files(root):
 
 # The workspace as bench.py copied it must be unchanged: code, docs and ADR 0001.
 want = files(template)
-changed = sorted(p for p in want if os.path.islink(os.path.join(ws, p)) or not os.path.isfile(os.path.join(ws, p))
-                 or open(os.path.join(ws, p), "rb").read() != open(os.path.join(template, p), "rb").read())
+changed = set(p for p in want if os.path.islink(os.path.join(ws, p)) or not os.path.isfile(os.path.join(ws, p))
+              or open(os.path.join(ws, p), "rb").read() != open(os.path.join(template, p), "rb").read())
+# git compares each committed file's bytes, mode and type with HEAD, the starting commit (the gate below keeps it so).
+git_diff = subprocess.run(["git", "diff", "-z", "--name-only", "HEAD", "--"], cwd=ws, capture_output=True, text=True)
+changed = sorted(changed | set(p for p in git_diff.stdout.split("\0") if p))
 if changed:
     fail("files of the workspace changed or missing: " + ", ".join(changed[:10]))
 out.append("ok: the workspace's files are unchanged")

@@ -25,6 +25,7 @@ extra-file|1|0.00|files added besides the ADR
 code-edited|1|0.00|files of the workspace changed
 adr0001-edited|1|0.00|files of the workspace changed
 symlinked-doc|1|0.00|files of the workspace changed
+mode-changed|1|0.00|files of the workspace changed
 symlinked-adr|1|0.00|symbolic links added
 committed|1|0.00|HEAD moved'
 
@@ -137,6 +138,7 @@ run_variant() {
     extra-file) echo "scratch" > "$ws/notes.md" ;;
     code-edited) printf '\n// reviewed\n' >> "$ws/internal/store/store.go" ;;
     adr0001-edited) printf '\nSuperseded by ADR 0002.\n' >> "$ws/docs/adr/0001-keep-links-in-memory.md" ;;
+    mode-changed) chmod +x "$ws/internal/store/store.go" ;;
     symlinked-doc) cp "$ws/docs/team.md" "$dir/team.md" && rm "$ws/docs/team.md" && ln -s "$dir/team.md" "$ws/docs/team.md" ;;
     committed) (cd "$ws" && git add -A && git -c user.name=agent -c user.email=agent@local -c commit.gpgsign=false commit -q -m adr) ;;
   esac
