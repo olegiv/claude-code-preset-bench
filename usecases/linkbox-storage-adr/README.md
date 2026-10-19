@@ -15,7 +15,7 @@ to reach the one decision that fits them all.
 | `check.sh` | The gates; the judge grades the content |
 | `rubric.md` | The judge's rubric: the facts in the materials, the defensible decision, ten points to check, bands |
 | `reference-adr.md` | A reference ADR, not given to the agent; the self-test's passing variant |
-| `selftest.sh` | Checks the use case, then runs the check on 18 known workspace states |
+| `selftest.sh` | Checks the use case, then runs the check on 20 known workspace states |
 
 ## The materials
 
@@ -43,10 +43,11 @@ migrations that tolerate concurrent starts.
 
 `check.sh` passes a run (score 1.00) when it added exactly one file, `docs/adr/0002-<lowercase-title>.md`, with
 ADR 0001's sections (Status, Context, Decision, Consequences, Alternatives considered; the last may be called
-Alternatives or Options considered), each with text, at least 200 words in all; changed or deleted no file of the
-workspace; added no symlink, whose target the judge's diff would not show; and did not commit, since `bench.py`
-shows the judge the working tree against `HEAD`. Any failed gate scores 0.00. Built binaries and test output are
-ignored.
+Alternatives or Options considered), each with text, at least 200 words in all, as UTF-8 text without NUL bytes
+(git would show the judge a binary file); changed or deleted no file of the workspace; added no symlink, whose
+target the judge's diff would not show; and did not commit, since `bench.py` shows the judge the working tree
+against `HEAD`. Added files are those git would stage for the judge. Any failed gate scores 0.00. Built binaries
+and test output are ignored.
 
 The judge scores the content from 0 to 10 with `rubric.md`, which holds the facts the agent read: one point each
 for the decision, the replica diagnosis, the reasons against SQLite and the other alternatives, IDs, the store's
@@ -56,15 +57,15 @@ PostgreSQL scores at most 3; a generic "PostgreSQL because it is durable" ADR la
 ## Self-test
 
 `bash selftest.sh` (about 10 seconds) first checks that every fact the rubric cites is stated in the file it names
-and that the workspace builds, vets and tests, then runs the check on 18 workspace states;
+and that the workspace builds, vets and tests, then runs the check on 20 workspace states;
 `CHECK_BASH=/bin/bash` uses macOS's bash 3.2.
 
 | Variant | Verdict |
 |---|---|
 | `perfect` (the reference ADR), `options-heading`, `binary-ignored` | PASS, 1.00 |
-| `missing-section`, `empty-section`, `too-short` | FAIL, 0.00 |
+| `missing-section`, `empty-section`, `too-short`, `binary-adr` | FAIL, 0.00 |
 | `no-adr`, `wrong-number`, `uppercase-title`, `wrong-dir`, `two-adrs` | FAIL, 0.00 |
-| `extra-file`, `code-edited`, `adr0001-edited`, `mode-changed`, `symlinked-doc`, `symlinked-adr`, `committed` | FAIL, 0.00 |
+| `extra-file`, `code-edited`, `adr0001-edited`, `mode-changed`, `symlinked-doc`, `symlinked-adr`, `symlinked-dir`, `committed` | FAIL, 0.00 |
 
 ## Known limits
 

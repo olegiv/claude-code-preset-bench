@@ -71,7 +71,10 @@ head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ws, capture_output=True,
 if head != base:
     fail("HEAD moved from the starting commit: the run committed, which the judge's diff would not show")
 
-added = sorted(p for p in files(ws) - want if not any(fnmatch.fnmatch(p, g) for g in IGNORED))
+# git's list of untracked files is what bench.py stages for the judge; it lists a symlink, to a file or a directory,
+# as one entry.
+untracked = subprocess.run(["git", "ls-files", "-z", "--others", "--exclude-standard"], cwd=ws, capture_output=True, text=True)
+added = sorted(p for p in untracked.stdout.split("\0") if p and not any(fnmatch.fnmatch(p, g) for g in IGNORED))
 # A symlink would let the gates read text from outside the workspace that the judge's diff does not show.
 links = [p for p in added if os.path.islink(os.path.join(ws, p))]
 if links:
@@ -86,7 +89,13 @@ adr = adrs[0]
 out.append("ok: one ADR added, " + adr)
 
 # Sections: the ## headings of ADR 0001, each with some text under it.
-text = open(os.path.join(ws, adr), encoding="utf-8", errors="replace").read()
+# Text the judge's diff can show: UTF-8 without NUL bytes, which make git call a file binary.
+try:
+    text = open(os.path.join(ws, adr), "rb").read().decode("utf-8")
+except UnicodeDecodeError:
+    text = "\0"
+if "\0" in text:
+    fail("the ADR is not UTF-8 text, so the judge's diff would not show it")
 body, heading = {}, None
 for line in text.splitlines():
     m = re.match(r"^##\s+(.+?)\s*:?\s*$", line)

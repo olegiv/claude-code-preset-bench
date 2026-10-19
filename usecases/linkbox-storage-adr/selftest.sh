@@ -27,6 +27,8 @@ adr0001-edited|1|0.00|files of the workspace changed
 symlinked-doc|1|0.00|files of the workspace changed
 mode-changed|1|0.00|files of the workspace changed
 symlinked-adr|1|0.00|symbolic links added
+symlinked-dir|1|0.00|symbolic links added
+binary-adr|1|0.00|not UTF-8 text
 committed|1|0.00|HEAD moved'
 
 # Facts the rubric gives the judge, with the file that must state them: file|text.
@@ -134,6 +136,8 @@ run_variant() {
   case $name in
     options-heading | missing-section | empty-section | too-short) edit_adr "$ws/$ADR" "$name" ;;
     binary-ignored) echo "binary" > "$ws/linkbox" && echo "test binary" > "$ws/api.test" ;;
+    symlinked-dir) mkdir "$dir/notes" && ln -s "$dir/notes" "$ws/notes" ;;
+    binary-adr) printf '\000' >> "$ws/$ADR" ;;
     two-adrs) cp "$REF" "$ws/docs/adr/0002-use-postgresql.md" ;;
     extra-file) echo "scratch" > "$ws/notes.md" ;;
     code-edited) printf '\n// reviewed\n' >> "$ws/internal/store/store.go" ;;

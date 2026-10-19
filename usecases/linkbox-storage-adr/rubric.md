@@ -44,6 +44,6 @@ Deduct:
 - 9–10: PostgreSQL with nearly all of points 2 to 10 grounded in the materials, concise and in the requested format.
 - 7–8: PostgreSQL, the replica diagnosis and SQLite's rejection right, and most of IDs, Store API, connections and retention.
 - 5–6: PostgreSQL for mostly generic reasons ("durable, scalable, the team knows it") with a few grounded consequences; misses the replica diagnosis or the ID problem.
-- 3–4: PostgreSQL with errors or contradictions of the materials, or another store argued carefully.
+- 3–4: PostgreSQL with errors or contradictions of the materials. Another store, however carefully argued, gets 3 at most.
 - 1–2: another store with weak reasoning, or an ADR that does not decide.
 - 0: no ADR, or one that ignores the task.

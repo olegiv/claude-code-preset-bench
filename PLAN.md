@@ -471,4 +471,4 @@ Costs are Claude Code's client-side estimates; on the Enterprise seat they map t
   retention under the 30-day erasure rule, migrations under concurrent starts) and caps any
   other store at 3. `check.sh` only gates, with UC2's HEAD-moved gate, since a commit would
   hide the whole ADR from the judge; `selftest.sh` checks that each fact the rubric cites is in
-  the materials and runs the gates on 18 workspace states. Caps are provisional.
+  the materials and runs the gates on 20 workspace states. Caps are provisional.
