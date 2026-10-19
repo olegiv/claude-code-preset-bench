@@ -150,14 +150,14 @@ code. Median judge score and cost per run:
 
 | Task type (use case) | `high` | `normal-max` | `normal` | `light` | `light-force` |
 |---|---|---|---|---|---|
-| Fix in a large real repository (UC1) | 9.0 · $6.64 | capped · $9.65 | 9.0 · $1.70 | **9.0 · $0.59** | 8.5 · $0.70 |
+| Fix in a large real repository (UC1) | 9.0 · $6.64 | capped · $9.65 | 9.0 · $1.70 | **9.0 · $0.59** | **8.5 · $0.70** |
 | Pull-request review (UC2) | 9.0 · $13.90 | 8.5 · $12.31 | 9.0 · $2.65 | 8.5 · $1.66 | **9.0 · $0.78** |
 | Architecture decision record (UC3) | 9.0 · $2.18 | 9.0 · $1.84 | 9.0 · $0.37 | **8.0 · $0.16** | 7.5 · $0.17 |
-| Greenfield build (UC4) | 9.0 · $11.83 | 9.0 · $15.74 | 8.8 · $2.27 | **8.0 · $0.63** | 8.0 · $0.75 |
+| Greenfield build (UC4) | 9.0 · $11.83 | 9.0 · $15.74 | 8.8 · $2.27 | **8.0 · $0.63** | **8.0 · $0.75** |
 
-Bold marks the winner by the decision rule (`PLAN.md`): no worse on passes, within one judge point
-of the best, and the cheapest; on UC1 and UC4 `light` and `light-force` are within 25% of each
-other, a tie. What that means for the launchers:
+Bold marks the winners by the decision rule (`PLAN.md`): no worse on passes, within one judge point
+of the best, and the cheapest. On UC1 and UC4 `light` and `light-force` cost within 25% of each
+other, which the rule counts as a tie, so both are bold. What that means for the launchers:
 
 - **`oclaude-light` or `oclaude-light-force` for routine work** (fixes, reviews, documents, small
   builds): every check passed, judge 7.5 to 9, about $0.65 a run. `light-force`, with every
